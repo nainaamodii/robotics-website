@@ -1,15 +1,12 @@
 "use client"
 
-import { Suspense, useRef, useState, useEffect, useCallback } from "react"
+import { Suspense, useRef, useState, useEffect } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { OrbitControls, Environment } from "@react-three/drei"
+import { OrbitControls, Environment, useGLTF } from "@react-three/drei"
 import * as THREE from "three"
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { Loader2 } from "lucide-react"
 
 const MODEL_PATH = "/cute_little_robot_web.glb"
-const DRACO_CDN = "https://www.gstatic.com/draco/versioned/decoders/1.5.7/"
 
 const messages = [
   "Hey there! Welcome to MNNIT Robotics!",
@@ -20,48 +17,14 @@ const messages = [
   "Let's build something awesome!",
 ]
 
-function useRobotModel() {
-  const [scene, setScene] = useState<THREE.Group | null>(null)
-  const [error, setError] = useState(false)
-  const attemptsRef = useRef(0)
+// Pre-load with local Draco decoders — no CDN dependency
+useGLTF.preload(MODEL_PATH, "/draco/")
 
-  const load = useCallback(() => {
-    const dracoLoader = new DRACOLoader()
-    dracoLoader.setDecoderPath(DRACO_CDN)
-    dracoLoader.setDecoderConfig({ type: "js" })
-
-    const loader = new GLTFLoader()
-    loader.setDRACOLoader(dracoLoader)
-
-    loader.load(
-      MODEL_PATH,
-      (gltf) => {
-        setScene(gltf.scene)
-        setError(false)
-        dracoLoader.dispose()
-      },
-      undefined,
-      () => {
-        dracoLoader.dispose()
-        attemptsRef.current++
-        if (attemptsRef.current < 3) {
-          setTimeout(load, 1000)
-        } else {
-          setError(true)
-        }
-      }
-    )
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  return { scene, error, retry: load }
-}
-
-function Robot({ scene }: { scene: THREE.Group }) {
+function Robot() {
   const groupRef = useRef<THREE.Group>(null!)
   const mouse = useRef({ x: 0, y: 0 })
   const { viewport } = useThree()
+  const { scene } = useGLTF(MODEL_PATH, "/draco/")
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -80,7 +43,8 @@ function Robot({ scene }: { scene: THREE.Group }) {
     groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetX, delta * 2)
   })
 
-  const box = new THREE.Box3().setFromObject(scene)
+  const cloned = scene.clone(true)
+  const box = new THREE.Box3().setFromObject(cloned)
   const size = new THREE.Vector3()
   box.getSize(size)
   const maxDim = Math.max(size.x, size.y, size.z)
@@ -92,7 +56,7 @@ function Robot({ scene }: { scene: THREE.Group }) {
   return (
     <group ref={groupRef}>
       <primitive
-        object={scene}
+        object={cloned}
         scale={scale}
         position={[-center.x * scale, -center.y * scale + 2.8, -center.z * scale]}
       />
@@ -100,7 +64,7 @@ function Robot({ scene }: { scene: THREE.Group }) {
   )
 }
 
-function SceneContent({ scene }: { scene: THREE.Group }) {
+function SceneContent() {
   const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
@@ -118,7 +82,7 @@ function SceneContent({ scene }: { scene: THREE.Group }) {
       <directionalLight position={[-3, 4, -4]} intensity={isDark ? 0.8 : 0.3} />
       <directionalLight position={[0, -3, 3]} intensity={isDark ? 0.6 : 0} />
       <Environment preset="city" environmentIntensity={isDark ? 0.8 : 0.4} />
-      <Robot scene={scene} />
+      <Robot />
       <OrbitControls
         enableZoom={false}
         enablePan={false}
@@ -164,49 +128,33 @@ function MessageBubble() {
       <div className="rounded-2xl rounded-bl-sm bg-[var(--bg)]/90 backdrop-blur-sm border border-[var(--border)] px-4 py-3 shadow-[var(--shadow-md)]">
         <p className="text-xs text-[var(--fg-secondary)] leading-relaxed">{msg}</p>
       </div>
-      {/* Tail — left side */}
       <div className="absolute -bottom-1.5 left-3 w-3 h-3 bg-[var(--bg)]/90 border-l border-b border-[var(--border)] rotate-45" />
     </div>
   )
 }
 
-export default function HeroScene() {
-  const { scene, error, retry } = useRobotModel()
+function LoadingFallback() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 text-[var(--fg-tertiary)] animate-spin" />
+    </div>
+  )
+}
 
+export default function HeroScene() {
   return (
     <div className="relative w-full h-full">
       <MessageBubble />
-
-      {!scene && !error && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-[var(--fg-tertiary)] animate-spin" />
-        </div>
-      )}
-
-      {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <p className="text-xs text-[var(--fg-tertiary)]">Failed to load 3D model</p>
-          <button
-            onClick={retry}
-            className="px-4 py-1.5 rounded-full border border-[var(--border)] text-xs text-[var(--fg-secondary)] hover:border-[var(--border-hover)] transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {scene && (
+      <Suspense fallback={<LoadingFallback />}>
         <Canvas
           dpr={[1, 1.5]}
           camera={{ position: [0, 1, 5], fov: 45 }}
           style={{ background: "transparent" }}
           gl={{ alpha: true, antialias: true }}
         >
-          <Suspense fallback={null}>
-            <SceneContent scene={scene} />
-          </Suspense>
+          <SceneContent />
         </Canvas>
-      )}
+      </Suspense>
     </div>
   )
 }
