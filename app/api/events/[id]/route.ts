@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getEventById, updateEvent, deleteEvent } from "@/lib/models/events"
+import { requireAdmin } from "@/lib/auth-guard"
+import { handleApiError, NotFoundError } from "@/lib/errors"
+import { ObjectIdSchema, UpdateEventSchema } from "@/lib/validation"
 
-export async function PUT(request: NextRequest, { params }: Props) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin()
     const { id } = await params
@@ -14,7 +17,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: Props) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin()
     const { id } = await params

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCompetitionById, updateCompetition, deleteCompetition } from "@/lib/models/competition"
+import { requireAdmin } from "@/lib/auth-guard"
+import { handleApiError, NotFoundError } from "@/lib/errors"
+import { ObjectIdSchema, UpdateCompetitionSchema } from "@/lib/validation"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -12,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 }
 
-export async function PUT(request: NextRequest, { params }: Props) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin()
     const { id } = await params
@@ -25,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: Props) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin()
     const { id } = await params
