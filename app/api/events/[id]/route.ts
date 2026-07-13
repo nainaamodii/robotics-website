@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { updateEvent, deleteEvent } from "@/lib/models/events"
+import { getEventById, updateEvent, deleteEvent } from "@/lib/models/events"
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -20,5 +20,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         return NextResponse.json({ message: "Deleted" })
     } catch (error) {
         return NextResponse.json({ error: "Delete failed" }, { status: 500 })
+    }
+}
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    try {
+        const { id } = await params
+        const event = await getEventById(id)
+        if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 })
+        return NextResponse.json(event)
+    } catch (error) {
+        return NextResponse.json({ error: "Fetch failed" }, { status: 500 })
     }
 }

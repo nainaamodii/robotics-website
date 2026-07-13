@@ -35,6 +35,12 @@ export async function getEventByName(name: string) {
     return db.collection('events').findOne({ name })
 }
 
+
+export async function getEventById(id: string) {
+    const db = await getDB()
+    return db.collection('events').findOne({ _id: new ObjectId(id) })
+}
+
 export async function getAllEvents() {
     const db = await getDB()
     return db.collection('events').aggregate([
@@ -88,3 +94,4 @@ export async function deleteEvent(id: string) {
     const result = await db.collection('events').deleteOne({ _id: eventId })
     return result.deletedCount > 0
 }
+

@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { updateCompetition, deleteCompetition } from "@/lib/models/competition"
+import { getCompetitionById, updateCompetition, deleteCompetition } from "@/lib/models/competition"
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    try {
+        const { id } = await params
+        const competition = await getCompetitionById(id)
+        if (!competition) return NextResponse.json({ error: "Not found" }, { status: 404 })
+        return NextResponse.json(competition)
+    } catch (error) {
+        return NextResponse.json({ error: "Fetch failed" }, { status: 500 })
+    }
+}
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
