@@ -24,12 +24,12 @@ export default function Starfield({ count = 90, className = "" }: { count?: numb
   }, [count])
 
   return (
-    <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
+    <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden opacity-40 dark:opacity-100 ${className}`}>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_120%,rgba(255,100,54,0.16),transparent_60%),radial-gradient(ellipse_at_50%_-20%,rgba(120,140,255,0.10),transparent_55%)]" />
       {stars.map((s, i) => (
         <span
           key={i}
-          className="absolute rounded-full bg-white"
+          className="absolute rounded-full bg-[var(--fg)]"
           style={{
             left: `${s.x}%`,
             top: `${s.y}%`,

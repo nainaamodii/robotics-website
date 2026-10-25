@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb'
 import { getDB } from '@/lib/db'
 import { ConflictError } from '@/lib/errors'
-import { eventStatus } from '@/lib/event-status'
+import { eventStatus, registrationInfo } from '@/lib/event-status'
 
 export interface Event {
     _id?: ObjectId
@@ -12,6 +12,10 @@ export interface Event {
     // the frontend can pick whichever it prefers.
     startDate?: string // "YYYY-MM-DD"
     endDate?: string   // "YYYY-MM-DD"
+    // When students can register. ISO instants; null/absent = no window, in
+    // which case each competition's `registrationOpen` switch decides.
+    registrationOpensAt?: string | null
+    registrationClosesAt?: string | null
     // UI fields
     theme: string
     tagline: string
@@ -118,7 +122,18 @@ export async function getAllEvents(
 /** Adds the computed `status` ('upcoming' | 'past') the frontend filters on. */
 export function withStatus<T extends { startDate?: string; endDate?: string }>(events: T[]) {
     const now = new Date()
-    return events.map((e) => ({ ...e, status: eventStatus(e, now) }))
+    return events.map((e: any) => ({
+        ...e,
+        status: eventStatus(e, now),
+        registration: registrationInfo(e, null, now),
+        competitions: Array.isArray(e.competitions)
+            ? e.competitions.map((c: any) =>
+                  c && typeof c === 'object' && 'title' in c
+                      ? { ...c, registration: registrationInfo(e, c, now) }
+                      : c,
+              )
+            : e.competitions,
+    })) as (T & { status: ReturnType<typeof eventStatus> })[]
 }
 
 /**
@@ -153,6 +168,7 @@ export async function getAdminEvents() {
             const s: any = byCompetition.get(String(c._id))
             return {
                 ...c,
+                registration: registrationInfo(e, c, now),
                 teamCount: s?.teams ?? 0,
                 memberCount: s?.members ?? 0,
                 pendingReview: s?.pendingReview ?? 0,

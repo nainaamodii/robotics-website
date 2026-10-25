@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireVerifiedUser } from '@/lib/auth-guard'
+import { getAuthUserId, requireUser, requireVerifiedUser } from '@/lib/auth-guard'
 import {
   createTeam,
   getTeamByCode,
@@ -7,6 +7,7 @@ import {
 } from '@/lib/models/team'
 import { createJoinRequest } from '@/lib/models/join-request'
 import { getUserById } from '@/lib/models/user'
+import { registrationInfo } from '@/lib/event-status'
 import {
   getCompetitionContext,
   isVisibleToStudents,
@@ -33,13 +34,15 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = await requireUser()
+    // Details are readable signed-out so the page can explain how to register;
+    // only the caller's own registration needs a session.
+    const userId = await getAuthUserId()
     const competitionId = ObjectIdSchema.parse(request.nextUrl.searchParams.get('competitionId'))
 
     const ctx = await getCompetitionContext(competitionId)
     if (!isVisibleToStudents(ctx)) throw new NotFoundError('Competition not found')
 
-    const existing = await getUserTeamForCompetition(userId, competitionId)
+    const existing = userId ? await getUserTeamForCompetition(userId, competitionId) : null
     const blockedReason = registrationBlockReason(ctx)
     const { competition, event } = ctx
 
@@ -54,7 +57,15 @@ export async function GET(request: NextRequest) {
         rules: competition.rules ?? [],
         registrationOpen: !!competition.registrationOpen,
       },
-      event: { _id: event._id, name: event.name, date: event.date, location: event.location },
+      event: {
+        _id: event._id,
+        name: event.name,
+        date: event.date,
+        location: event.location,
+        startDate: event.startDate ?? null,
+        endDate: event.endDate ?? null,
+      },
+      registrationWindow: registrationInfo(event, competition),
       registration: existing
         ? {
             teamId: existing._id,
@@ -62,6 +73,7 @@ export async function GET(request: NextRequest) {
             approvalStatus: existing.approvalStatus ?? (existing.isFinalized ? 'approved' : 'draft'),
           }
         : null,
+      signedIn: !!userId,
       canRegister: !existing && !blockedReason,
       blockedReason,
     })

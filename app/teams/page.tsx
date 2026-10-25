@@ -25,8 +25,8 @@ interface MyTeam {
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: "Assembling", cls: "text-[var(--fg-secondary)] border-[var(--border-hover)]" },
   submitted: { label: "Awaiting approval", cls: "text-amber-300 border-amber-400/40" },
-  approved: { label: "Cleared for launch", cls: "text-emerald-300 border-emerald-400/40" },
-  rejected: { label: "Needs changes", cls: "text-red-300 border-red-400/40" },
+  approved: { label: "Cleared for launch", cls: "text-emerald-700 dark:text-emerald-300 border-emerald-400/40" },
+  rejected: { label: "Needs changes", cls: "text-red-700 dark:text-red-300 border-red-400/40" },
 }
 
 export default function TeamsPage() {
@@ -67,7 +67,7 @@ export default function TeamsPage() {
                   const leader = String(t.leaderId) === String(user?._id)
                   return (
                     <motion.div key={t._id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-                      <Link href={`/teams/${t._id}`} className="realm-panel p-7 block group hover:!border-white transition-colors">
+                      <Link href={`/teams/${t._id}`} className="realm-panel p-7 block group hover:!border-[var(--fg)] transition-colors">
                         <div className="flex items-start justify-between gap-4">
                           <p className="realm-eyebrow !text-[10px]">{t.eventName ?? "Mission"}</p>
                           <span className={`realm-eyebrow !text-[10px] border px-2.5 py-1 ${st.cls}`}>{st.label}</span>
@@ -79,7 +79,7 @@ export default function TeamsPage() {
                             <Users className="w-3.5 h-3.5" /> {t.members.length}
                             {t.maxTeamSize ? ` / ${t.maxTeamSize}` : ""} {leader && <span className="text-[var(--accent)]">· Leader</span>}
                           </span>
-                          <span className="font-mono tracking-[0.3em] text-white">{t.teamCode}</span>
+                          <span className="font-mono tracking-[0.3em] text-[var(--fg)]">{t.teamCode}</span>
                           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </div>
                       </Link>

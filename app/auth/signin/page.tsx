@@ -153,7 +153,7 @@ function SignInInner() {
             </h1>
             <p className="mt-8 max-w-md text-[15px] leading-relaxed text-[var(--fg-secondary)]">
               No passwords. Sign in with Google or get a one-time code by email.
-              {providers.emailDomain && <> Only <span className="text-white">@{providers.emailDomain}</span> addresses are accepted.</>} Every
+              {providers.emailDomain && <> Only <span className="text-[var(--fg)]">@{providers.emailDomain}</span> addresses are accepted.</>} Every
               crew member is verified before they can register for an event.
             </p>
           </motion.div>
@@ -204,7 +204,7 @@ function SignInInner() {
                     onChange={(e) => { setEmail(e.target.value); setError("") }}
                     placeholder={providers.emailDomain ? `you@${providers.emailDomain}` : "you@example.com"}
                     aria-describedby={error ? "auth-error" : undefined}
-                    className="w-full bg-transparent border border-[var(--border)] focus:border-white px-4 py-3.5 text-base text-white placeholder:text-[var(--fg-tertiary)] outline-none transition-colors"
+                    className="w-full bg-transparent border border-[var(--border)] focus:border-[var(--fg)] px-4 py-3.5 text-base text-[var(--fg)] placeholder:text-[var(--fg-tertiary)] outline-none transition-colors"
                   />
                   <button type="submit" disabled={busy || !email.includes("@")} className="realm-btn mt-6 w-full">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Send code <ArrowRight className="w-4 h-4" /></>}
@@ -221,7 +221,7 @@ function SignInInner() {
                   <div className="flex items-start gap-3 mb-6">
                     <MailCheck className="w-5 h-5 mt-0.5 text-[var(--accent)] shrink-0" />
                     <p className="text-sm text-[var(--fg-secondary)]">
-                      Code sent to <span className="text-white break-all">{email}</span>
+                      Code sent to <span className="text-[var(--fg)] break-all">{email}</span>
                     </p>
                   </div>
                   <div role="group" aria-label="6-digit verification code" className="flex gap-2 sm:gap-3">
@@ -240,7 +240,7 @@ function SignInInner() {
                         aria-label={`Digit ${i + 1}`}
                         disabled={busy}
                         autoFocus={i === 0}
-                        className="w-full min-w-0 aspect-[4/5] max-h-16 text-center text-2xl font-mono bg-transparent border border-[var(--border)] focus:border-white text-white outline-none transition-colors disabled:opacity-50"
+                        className="w-full min-w-0 aspect-[4/5] max-h-16 text-center text-2xl font-mono bg-transparent border border-[var(--border)] focus:border-[var(--fg)] text-[var(--fg)] outline-none transition-colors disabled:opacity-50"
                       />
                     ))}
                   </div>
@@ -253,7 +253,7 @@ function SignInInner() {
                     <button
                       type="button"
                       onClick={() => { setStep("email"); setError("") }}
-                      className="inline-flex items-center gap-2 text-[var(--fg-secondary)] hover:text-white transition-colors"
+                      className="inline-flex items-center gap-2 text-[var(--fg-secondary)] hover:text-[var(--fg)] transition-colors"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" /> Change email
                     </button>
@@ -261,7 +261,7 @@ function SignInInner() {
                       type="button"
                       onClick={() => sendCode()}
                       disabled={cooldown > 0 || busy}
-                      className="text-[var(--fg-secondary)] hover:text-white disabled:opacity-40 disabled:hover:text-[var(--fg-secondary)] transition-colors"
+                      className="text-[var(--fg-secondary)] hover:text-[var(--fg)] disabled:opacity-40 disabled:hover:text-[var(--fg-secondary)] transition-colors"
                     >
                       {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
                     </button>
@@ -271,14 +271,14 @@ function SignInInner() {
             </AnimatePresence>
 
             {error && (
-              <div id="auth-error" role="alert" className="mt-6 flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+              <div id="auth-error" role="alert" className="mt-6 flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
               </div>
             )}
 
             <p className="mt-8 pt-6 border-t border-[var(--border)] text-xs text-[var(--fg-tertiary)]">
               Site admin?{" "}
-              <Link href="/admin/auth" className="text-[var(--fg-secondary)] hover:text-white underline underline-offset-4">
+              <Link href="/admin/auth" className="text-[var(--fg-secondary)] hover:text-[var(--fg)] underline underline-offset-4">
                 Admin console
               </Link>
             </p>

@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import { ObjectId } from 'mongodb'
 import { getDB } from '../db'
 import { ConflictError } from '../errors'
+import { registrationInfo } from '../event-status'
 
 /**
  * Team approval state machine (Option A — approval REPLACES leader finalize).
@@ -407,8 +408,18 @@ export async function submitTeamForApproval(teamId: string, userId: string) {
         `This competition requires at least ${min} member${min === 1 ? '' : 's'} — your team has ${size}.`,
       )
     }
-    if (current === 'draft' && competition.registrationOpen === false) {
-      throw new ConflictError('Registration for this competition is closed')
+    if (current === 'draft') {
+      const event = competition.eventId
+        ? await db.collection('events').findOne({ _id: competition.eventId })
+        : null
+      const reg = registrationInfo(event as any, competition as any)
+      if (reg.state !== 'open') {
+        throw new ConflictError(
+          reg.state === 'not_yet_open'
+            ? 'Registration for this event has not opened yet'
+            : 'Registration for this competition is closed',
+        )
+      }
     }
   }
 

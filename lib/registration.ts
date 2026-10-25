@@ -5,13 +5,14 @@
  *
  * A competition accepts registrations only when:
  *   1. its parent event exists and is PUBLISHED (drafts are invisible to students),
- *   2. an admin has switched `registrationOpen` on for the competition, and
+ *   2. the event's registration window is open (or, for events with no window,
+ *      an admin has switched `registrationOpen` on for the competition), and
  *   3. the event has not already concluded.
  */
 import { ObjectId } from 'mongodb'
 import { getDB } from './db'
 import { ConflictError, NotFoundError } from './errors'
-import { eventStatus } from './event-status'
+import { registrationInfo } from './event-status'
 import { isPublished } from './models/events'
 
 export interface CompetitionContext {
@@ -19,10 +20,16 @@ export interface CompetitionContext {
   event: any | null
 }
 
-export type RegistrationBlock = 'registration_closed' | 'event_concluded'
+export type RegistrationBlock =
+  | 'registration_closed'
+  | 'not_yet_open'
+  | 'registration_ended'
+  | 'event_concluded'
 
 export const REGISTRATION_BLOCK_MESSAGES: Record<RegistrationBlock, string> = {
   registration_closed: 'Registration for this competition is not open',
+  not_yet_open: 'Registration for this event has not opened yet',
+  registration_ended: 'Registration for this event has closed',
   event_concluded: 'This event has already concluded',
 }
 
@@ -44,9 +51,13 @@ export async function getCompetitionContext(
 
 /** Why registration is blocked for this competition right now, or null if it is open. */
 export function registrationBlockReason(ctx: CompetitionContext): RegistrationBlock | null {
-  if (!ctx.competition.registrationOpen) return 'registration_closed'
-  if (ctx.event && eventStatus(ctx.event) === 'past') return 'event_concluded'
-  return null
+  switch (registrationInfo(ctx.event, ctx.competition).state) {
+    case 'open': return null
+    case 'not_yet_open': return 'not_yet_open'
+    case 'ended': return 'registration_ended'
+    case 'concluded': return 'event_concluded'
+    default: return 'registration_closed'
+  }
 }
 
 /** Visible to students at all? (event exists and is published) */

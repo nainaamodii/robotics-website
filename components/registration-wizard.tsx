@@ -94,8 +94,8 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
   if (result) {
     return (
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="realm-panel p-10 text-center">
-        <div className="w-14 h-14 border border-white mx-auto mb-6 flex items-center justify-center">
-          <Check className="w-6 h-6 text-white" />
+        <div className="w-14 h-14 border border-[var(--fg)] mx-auto mb-6 flex items-center justify-center">
+          <Check className="w-6 h-6 text-[var(--fg)]" />
         </div>
         <p className="realm-eyebrow mb-3">{result.pending ? "Request transmitted" : mode === "create" ? "Crew registered" : "Crew joined"}</p>
         <h2 className="realm-title text-4xl">{result.teamName}</h2>
@@ -105,9 +105,9 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
             : "Share the crew code below. Submit the roster for admin approval from your team page."}
         </p>
         {result.teamCode && (
-          <button onClick={copyCode} className="mt-8 inline-flex items-center gap-4 border border-[var(--border-hover)] px-6 py-4 hover:border-white transition-colors" aria-label="Copy team code">
-            <span className="font-mono text-3xl tracking-[0.35em] text-white">{result.teamCode}</span>
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[var(--fg-secondary)]" />}
+          <button onClick={copyCode} className="mt-8 inline-flex items-center gap-4 border border-[var(--border-hover)] px-6 py-4 hover:border-[var(--fg)] transition-colors" aria-label="Copy team code">
+            <span className="font-mono text-3xl tracking-[0.35em] text-[var(--fg)]">{result.teamCode}</span>
+            {copied ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4 text-[var(--fg-secondary)]" />}
           </button>
         )}
         <div className="mt-10">
@@ -120,7 +120,7 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
   }
 
   const errorBox = error && (
-    <div role="alert" className="mt-6 flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+    <div role="alert" className="mt-6 flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
     </div>
   )
@@ -138,12 +138,12 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
               <button
                 key={m}
                 onClick={() => { setMode(m); setStep(1); setError("") }}
-                className="realm-panel p-7 text-left group hover:!border-white transition-colors"
+                className="realm-panel p-7 text-left group hover:!border-[var(--fg)] transition-colors"
               >
                 <Icon className="w-5 h-5 text-[var(--accent)] mb-8" />
-                <h3 className="text-xl text-white">{title}</h3>
+                <h3 className="text-xl text-[var(--fg)]">{title}</h3>
                 <p className="mt-2 text-sm text-[var(--fg-secondary)]">{sub}</p>
-                <ArrowRight className="mt-8 w-4 h-4 text-[var(--fg-secondary)] group-hover:translate-x-1 group-hover:text-white transition-all" />
+                <ArrowRight className="mt-8 w-4 h-4 text-[var(--fg-secondary)] group-hover:translate-x-1 group-hover:text-[var(--fg)] transition-all" />
               </button>
             ))}
           </motion.div>
@@ -161,11 +161,11 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
                   placeholder="ABC123"
                   value={teamCode}
                   onChange={(e) => { const v = e.target.value.toUpperCase(); setTeamCode(v); setError(""); validateCode(v) }}
-                  className="w-full bg-transparent border border-[var(--border)] focus:border-white px-4 py-4 text-2xl font-mono tracking-[0.35em] text-center text-white outline-none transition-colors"
+                  className="w-full bg-transparent border border-[var(--border)] focus:border-[var(--fg)] px-4 py-4 text-2xl font-mono tracking-[0.35em] text-center text-[var(--fg)] outline-none transition-colors"
                 />
                 <div className="mt-3 h-5 text-xs">
                   {validating && <span className="flex items-center gap-2 text-[var(--fg-tertiary)]"><Loader2 className="w-3 h-3 animate-spin" /> Checking…</span>}
-                  {validatedTeam && <span className="flex items-center gap-2 text-emerald-400"><Check className="w-3 h-3" /> {validatedTeam}</span>}
+                  {validatedTeam && <span className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400"><Check className="w-3 h-3" /> {validatedTeam}</span>}
                 </div>
               </>
             ) : (
@@ -178,7 +178,7 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
                   placeholder="e.g. Nexus Vanguard"
                   value={teamName}
                   onChange={(e) => { setTeamName(e.target.value); setError("") }}
-                  className="w-full bg-transparent border border-[var(--border)] focus:border-white px-4 py-4 text-xl text-white placeholder:text-[var(--fg-tertiary)] outline-none transition-colors"
+                  className="w-full bg-transparent border border-[var(--border)] focus:border-[var(--fg)] px-4 py-4 text-xl text-[var(--fg)] placeholder:text-[var(--fg-tertiary)] outline-none transition-colors"
                 />
                 {teamSize && (
                   <p className="mt-3 text-xs text-[var(--fg-tertiary)]">
@@ -211,7 +211,7 @@ export default function RegistrationWizard({ competitionId, competitionTitle, te
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-6 py-4 text-sm">
                   <dt className="realm-eyebrow !text-[10px]">{k}</dt>
-                  <dd className="text-white text-right">{v}</dd>
+                  <dd className="text-[var(--fg)] text-right">{v}</dd>
                 </div>
               ))}
             </dl>

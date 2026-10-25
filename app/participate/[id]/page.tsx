@@ -7,9 +7,12 @@ import { ArrowRight, Calendar, Loader2, MapPin, ShieldCheck, ShieldAlert } from 
 import RealmPage, { Eyebrow } from "@/components/realm/realm-page"
 import RegistrationWizard from "@/components/registration-wizard"
 import { useAuth } from "@/lib/auth-context"
+import { HowToRegister, RegistrationTimeline } from "@/components/realm/registration-timeline"
 
 const BLOCK_COPY: Record<string, string> = {
-  registration_closed: "Registration for this competition is closed.",
+  registration_closed: "Registration for this competition has not been opened by the organisers yet.",
+  not_yet_open: "Registration has not opened yet. See the dates above.",
+  registration_ended: "Registration for this event has closed.",
   event_concluded: "This event has concluded.",
 }
 
@@ -50,11 +53,24 @@ export default function ParticipatePage({ params }: { params: Promise<{ id: stri
                 {ctx.event.location && <span className="inline-flex items-center gap-2"><MapPin className="w-3.5 h-3.5" />{ctx.event.location}</span>}
               </p>
 
-              <div className={`mt-8 flex items-center gap-3 border p-4 text-sm ${verified ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/40 text-amber-200"}`}>
+              <div className="mt-8 grid sm:grid-cols-2 gap-3">
+                <RegistrationTimeline registration={ctx.registrationWindow} startDate={ctx.event.startDate} endDate={ctx.event.endDate} />
+                <HowToRegister />
+              </div>
+
+              {!user ? (
+                <div className="mt-8 realm-panel p-8">
+                  <p className="realm-eyebrow mb-3">Sign in to register</p>
+                  <p className="text-sm text-[var(--fg-secondary)]">Use your @mnnit.ac.in email to register yourself and your team.</p>
+                  <Link href={`/auth/signin?next=/participate/${competitionId}`} className="realm-btn mt-6">Sign in <ArrowRight className="w-4 h-4" /></Link>
+                </div>
+              ) : (
+              <>
+              <div className={`mt-8 flex items-center gap-3 border p-4 text-sm ${verified ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "border-amber-500/40 text-amber-800 dark:text-amber-200"}`}>
                 {verified ? <ShieldCheck className="w-4 h-4 shrink-0" /> : <ShieldAlert className="w-4 h-4 shrink-0" />}
                 {verified
-                  ? <span>Email verified — <span className="text-white">{user?.email}</span></span>
-                  : <span>Your email isn&apos;t verified. <Link href={`/auth/signin?next=/participate/${competitionId}`} className="underline underline-offset-4 text-white">Sign in with a code</Link> to register.</span>}
+                  ? <span>Email verified — <span className="text-[var(--fg)]">{user?.email}</span></span>
+                  : <span>Your email isn&apos;t verified. <Link href={`/auth/signin?next=/participate/${competitionId}`} className="underline underline-offset-4 text-[var(--fg)]">Sign in with a code</Link> to register.</span>}
               </div>
 
               <div className="mt-10">
@@ -74,6 +90,8 @@ export default function ParticipatePage({ params }: { params: Promise<{ id: stri
                   />
                 ) : null}
               </div>
+              </>
+              )}
             </motion.div>
           )}
         </div>

@@ -5,7 +5,7 @@ import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import Starfield from "./starfield"
 
-/** Dark mission-control shell shared by the sign-in → events → registration flow. */
+/** Mission-control shell (follows the site's light/dark toggle) shared by the sign-in → events → registration flow. */
 export default function RealmPage({
   children,
   footer = true,
@@ -16,7 +16,7 @@ export default function RealmPage({
   stars?: boolean
 }) {
   return (
-    <div className="dark realm min-h-screen relative">
+    <div className="realm min-h-screen relative">
       {stars && <Starfield />}
       <div className="relative z-10">
         <Navbar />
