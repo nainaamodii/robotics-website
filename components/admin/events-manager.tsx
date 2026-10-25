@@ -20,6 +20,7 @@ type Event = {
     participantsLabel?: string
     highlights?: string[]
     competitions: any[]
+    status?: string
 }
 
 type Competition = {
@@ -120,11 +121,10 @@ export function EventsManager() {
         const url = isNew ? "/api/events" : `/api/events/${editingEvent._id}`
         const method = isNew ? "POST" : "PUT"
         try {
-            // Only send fields the schema knows about — strip _id, `date`,
-            // `year`, `competitions`, `createdAt` etc. so `.strict()` on the
-            // update schema doesn't reject the request.
+            // Strip database and API-only fields (including computed `status`)
+            // so `.strict()` on the update schema accepts the request.
             const {
-                _id, date, year, competitions, createdAt, updatedAt, isActive,
+                _id, date, year, status, competitions, createdAt, updatedAt, isActive,
                 ...payload
             } = editingEvent as any
             const res = await fetch(url, {
@@ -239,8 +239,8 @@ export function EventsManager() {
             {/* Edit Event Modal */}
             {editingEvent && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[var(--shadow-lg)]">
-                        <h3 className="font-display text-xl font-bold text-[var(--fg)] mb-6">
+                    <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-[var(--shadow-lg)]">
+                        <h3 className="mb-6 shrink-0 font-display text-xl font-bold text-[var(--fg)]">
                             {editingEvent._id ? "Edit Event" : "Create Event"}
                         </h3>
 
@@ -261,7 +261,7 @@ export function EventsManager() {
                             </div>
                         )}
 
-                        <div className="space-y-4">
+                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
                             <div className="grid grid-cols-2 gap-4">
                                 <input
                                     placeholder="Event Name"
@@ -373,22 +373,22 @@ export function EventsManager() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
-                                <button
-                                    onClick={() => { setEditingEvent(null); setEventError(null) }}
-                                    className="px-5 py-2.5 rounded-full border border-[var(--border)] text-[var(--fg-secondary)] text-sm font-medium hover:border-[var(--border-hover)] transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSaveEvent}
-                                    disabled={saving}
-                                    className="px-6 py-2.5 rounded-full bg-[var(--fg)] text-[var(--bg)] text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                                    Save Event
-                                </button>
-                            </div>
+                        </div>
+                        <div className="flex shrink-0 justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg)] pt-4">
+                            <button
+                                onClick={() => { setEditingEvent(null); setEventError(null) }}
+                                className="px-5 py-2.5 rounded-full border border-[var(--border)] text-[var(--fg-secondary)] text-sm font-medium hover:border-[var(--border-hover)] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveEvent}
+                                disabled={saving}
+                                className="flex items-center gap-2 rounded-full bg-[var(--fg)] px-6 py-2.5 text-sm font-medium text-[var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                Save Event
+                            </button>
                         </div>
                     </div>
                 </div>

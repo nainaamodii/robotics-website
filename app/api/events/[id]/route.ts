@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { getEventById, updateEvent, deleteEvent } from "@/lib/models/events"
 import { requireAdmin } from "@/lib/auth-guard"
 import { handleApiError, NotFoundError } from "@/lib/errors"
