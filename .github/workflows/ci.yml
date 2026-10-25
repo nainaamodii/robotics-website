@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Values come from Settings → Secrets and variables → Actions. The fallbacks
+    # let the build run on forks/PRs where secrets aren't exposed — they are
+    # throwaway placeholders, not real credentials.
+    env:
+      MONGO_URL: ${{ secrets.MONGO_URL || 'mongodb://127.0.0.1:27017' }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-placeholder-secret-ci-placeholder-secret-0000' }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'ci-placeholder' }}
+      NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'ci' }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY || 'ci' }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET || 'ci' }}
+      CLOUDINARY_UPLOAD_PRESET: ${{ secrets.CLOUDINARY_UPLOAD_PRESET || 'ci' }}
+      APP_URL: ${{ vars.APP_URL || 'http://localhost:3000' }}
+      ALLOWED_EMAIL_DOMAIN: ${{ vars.ALLOWED_EMAIL_DOMAIN || 'mnnit.ac.in' }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      # The chatbot module reads these at import time during `next build`.
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || 'ci' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'ci' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit -p . 2>&1 | grep -v '^\.claude' | tee tsc.log; ! grep -q 'error TS' tsc.log
+      - name: Unit tests
+        run: npm run test:run
+      - name: Build
+        run: npm run build

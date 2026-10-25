@@ -33,16 +33,21 @@ const EnvSchema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 
 
-  RESEND_API_KEY: z.string().min(1).optional(),
-  EMAIL_FROM: z.string().email().optional(),
 
-  APP_URL: z.string().url().default('https://robotics-website-smoky.vercel.app'),
+  // Public origin of the site. Google's redirect URI is built from it, so it must
+  // match what is registered in Google Cloud Console exactly.
+  APP_URL: z.string().url().optional(),
+
+  // Google sign-in is offered only when BOTH are set.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+
+  // Only addresses at this domain may sign in (OTP and Google). Empty = allow any.
+  ALLOWED_EMAIL_DOMAIN: z.string().trim().toLowerCase().default('mnnit.ac.in'),
 
   SENTRY_DSN: z.string().url().optional(),
 
 
-  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
-  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 })
@@ -61,7 +66,12 @@ function loadEnv() {
       )}\nCheck .env.local against .env.example.\n`,
     )
   }
-  return parsed.data
+  const data = parsed.data
+  // Local dev: default to localhost so Google's redirect URI doesn't point at production.
+  const appUrl =
+    data.APP_URL ??
+    (data.NODE_ENV === 'production' ? 'https://robotics-website-smoky.vercel.app' : 'http://localhost:3000')
+  return { ...data, APP_URL: appUrl }
 }
 
 export const env = loadEnv()

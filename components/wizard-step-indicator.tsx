@@ -1,6 +1,5 @@
 "use client"
 
-import { motion } from "framer-motion"
 import { Check } from "lucide-react"
 
 interface Props {
@@ -8,43 +7,29 @@ interface Props {
   currentStep: number
 }
 
+/** Horizontal "T-minus" style progress: numbered ticks joined by a hairline. */
 export default function WizardStepIndicator({ steps, currentStep }: Props) {
   return (
-    <div className="flex items-center justify-center gap-0 w-full max-w-md mx-auto mb-10">
+    <ol className="flex items-center w-full mb-10" aria-label="Registration progress">
       {steps.map((label, idx) => {
-        const isActive = idx === currentStep
-        const isComplete = idx < currentStep
+        const done = idx < currentStep
+        const active = idx === currentStep
         return (
-          <div key={label} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center">
-              <motion.div
-                animate={{
-                  scale: isActive ? 1.1 : 1,
-                }}
-                className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-semibold transition-colors ${
-                  isComplete
-                    ? "bg-[var(--fg)] text-[var(--bg)] border-[var(--fg)]"
-                    : isActive
-                    ? "bg-[var(--bg)] text-[var(--fg)] border-[var(--fg)]"
-                    : "bg-[var(--bg-secondary)] text-[var(--fg-tertiary)] border-[var(--border)]"
+          <li key={label} className="flex items-center flex-1 last:flex-none" aria-current={active ? "step" : undefined}>
+            <div className="flex items-center gap-3">
+              <span
+                className={`w-7 h-7 border flex items-center justify-center text-[11px] font-mono transition-colors ${
+                  done ? "bg-white text-black border-white" : active ? "border-white text-white" : "border-[var(--border)] text-[var(--fg-tertiary)]"
                 }`}
               >
-                {isComplete ? <Check className="w-4 h-4" /> : idx + 1}
-              </motion.div>
-              <span className={`text-[10px] mt-2 text-center whitespace-nowrap uppercase tracking-wider font-medium ${
-                isActive ? "text-[var(--fg)]" : "text-[var(--fg-tertiary)]"
-              }`}>
-                {label}
+                {done ? <Check className="w-3.5 h-3.5" /> : String(idx + 1).padStart(2, "0")}
               </span>
+              <span className={`realm-eyebrow !text-[10px] hidden sm:block ${active ? "!text-white" : ""}`}>{label}</span>
             </div>
-            {idx < steps.length - 1 && (
-              <div className={`flex-1 h-px mx-2 mt-[-16px] ${
-                idx < currentStep ? "bg-[var(--fg)]" : "bg-[var(--border)]"
-              }`} />
-            )}
-          </div>
+            {idx < steps.length - 1 && <span className={`flex-1 h-px mx-4 ${done ? "bg-white" : "bg-[var(--border)]"}`} />}
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }

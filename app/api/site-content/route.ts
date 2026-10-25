@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllSectionContent, upsertSectionContent } from '@/lib/models/site-content'
-import { cookies } from 'next/headers'
-import jwt from 'jsonwebtoken'
+import { z } from 'zod'
+import { requireAdmin } from '@/lib/auth-guard'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(req: NextRequest) {
   const sectionId = req.nextUrl.searchParams.get('sectionId')
@@ -18,21 +19,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('admin_token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   try {
-    jwt.verify(token, process.env.JWT_SECRET || 'secret')
-  } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    await requireAdmin()
+    const { sectionId, content } = z
+      .object({ sectionId: z.string().regex(/^[a-z0-9-]{1,50}$/), content: z.record(z.any()) })
+      .parse(await req.json())
+    return NextResponse.json(await upsertSectionContent(sectionId, content))
+  } catch (error) {
+    return handleApiError(error)
   }
-
-  const { sectionId, content } = await req.json()
-  if (!sectionId || !content) {
-    return NextResponse.json({ error: 'sectionId and content required' }, { status: 400 })
-  }
-
-  const updated = await upsertSectionContent(sectionId, content)
-  return NextResponse.json(updated)
 }

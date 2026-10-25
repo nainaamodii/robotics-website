@@ -17,6 +17,7 @@
  */
 import { env } from './env'
 import { AuthError, ApiError } from './errors'
+import { log } from './logger'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -49,6 +50,8 @@ export function buildAuthUrl(state: string): string {
   url.searchParams.set('scope', SCOPES)
   url.searchParams.set('access_type', 'online') // no refresh token — we only need a one-shot signin
   url.searchParams.set('prompt', 'select_account')
+  // UI hint only (Google shows just this domain's accounts). The real check is server-side.
+  if (env.ALLOWED_EMAIL_DOMAIN) url.searchParams.set('hd', env.ALLOWED_EMAIL_DOMAIN)
   url.searchParams.set('state', state)
   return url.toString()
 }
@@ -86,13 +89,12 @@ export async function exchangeCodeForProfile(code: string): Promise<GoogleProfil
   })
   if (!tokenRes.ok) {
     const body = await tokenRes.text().catch(() => '')
-    throw new AuthError(
-      `Google token exchange failed: ${body.slice(0, 200) || tokenRes.statusText}`,
-    )
+    log.warn('google token exchange failed', { status: tokenRes.status, body: body.slice(0, 200) })
+    throw new AuthError('google_token_exchange_failed')
   }
   const tokenData = (await tokenRes.json()) as { access_token?: string }
   if (!tokenData.access_token) {
-    throw new AuthError('Google did not return an access token')
+    throw new AuthError('google_no_access_token')
   }
 
   // 2. Fetch the user profile with the access token.
@@ -100,14 +102,14 @@ export async function exchangeCodeForProfile(code: string): Promise<GoogleProfil
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   })
   if (!userRes.ok) {
-    throw new AuthError('Failed to fetch Google user profile')
+    throw new AuthError('google_profile_failed')
   }
   const profile = (await userRes.json()) as GoogleProfile
   if (!profile.email) {
-    throw new AuthError('Google profile is missing an email address')
+    throw new AuthError('google_no_email')
   }
-  if (profile.email_verified === false) {
-    throw new AuthError('Google email is not verified')
+  if (profile.email_verified !== true) {
+    throw new AuthError('google_email_unverified')
   }
-  return profile
+  return { ...profile, email: profile.email.trim().toLowerCase() }
 }

@@ -25,7 +25,7 @@ const spanPatterns = [
   "md:col-span-1 md:row-span-1",
 ]
 
-const ease = [0.32, 0.72, 0, 1]
+const ease: [number, number, number, number] = [0.32, 0.72, 0, 1]
 
 function pickAcrossDomains(projects: Project[], max: number): Project[] {
   const byCategory = new Map<string, Project[]>()

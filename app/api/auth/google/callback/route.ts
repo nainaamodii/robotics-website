@@ -1,117 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import jwt from 'jsonwebtoken'
-import { ObjectId } from 'mongodb'
 import { env } from '@/lib/env'
 import { exchangeCodeForProfile } from '@/lib/google-oauth'
-import {
-  createUserFromGoogle,
-  getUserByEmail,
-  getUserByGoogleId,
-  linkGoogleAccount,
-} from '@/lib/models/user'
-import { AuthError, ConflictError, handleApiError } from '@/lib/errors'
+import { isAllowedEmail } from '@/lib/email-policy'
+import { findOrCreateVerifiedUser, updateUser } from '@/lib/models/user'
+import { ApiError, AuthError } from '@/lib/errors'
 import { log } from '@/lib/logger'
+import { cacheDel, cacheKeys } from '@/lib/redis'
+
+export const dynamic = 'force-dynamic'
+
+/** Error codes the sign-in page knows how to render — nothing free-form is reflected back. */
+const KNOWN_ERRORS = new Set([
+  'invalid_state',
+  'missing_code_or_state',
+  'google_access_denied',
+  'google_not_configured',
+  'google_token_exchange_failed',
+  'google_no_access_token',
+  'google_profile_failed',
+  'google_no_email',
+  'google_email_unverified',
+  'wrong_domain',
+  'oauth_failed',
+])
 
 /**
  * GET /api/auth/google/callback?code=...&state=...
  *
- * Google redirects the user here after they consent. We:
- *   1. Verify the state matches the cookie we set (CSRF guard).
- *   2. Exchange the code for the user's Google profile.
- *   3. Match the profile to an existing user (by googleId, then by email),
- *      or create a new user.
- *   4. Issue our own JWT cookie — from this point on the session is identical
- *      to email/password login.
- *   5. Redirect to the `oauth_next` path (defaults to '/').
- *
- * Errors along the way redirect to /auth/signin?error=... rather than showing
- * a JSON blob — this route is hit by the browser, not by fetch().
+ * 1. Check `state` against the cookie set at /api/auth/google (CSRF guard).
+ * 2. Exchange the code for the Google profile (email must be Google-verified).
+ * 3. Enforce the allowed email domain.
+ * 4. Find-or-create the user by email — the same account an email-OTP sign-in
+ *    would use — and mark it verified (Google verified the address).
+ * 5. Issue the same `auth_token` cookie as the OTP flow.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
-
   try {
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const errParam = searchParams.get('error')
 
-    // The user clicked "Cancel" on Google's screen, or Google returned an error.
-    if (errParam) {
-      return redirectToSignin(request, `google_${errParam}`)
-    }
-    if (!code || !state) {
-      return redirectToSignin(request, 'missing_code_or_state')
-    }
+    if (errParam) return redirectToSignin(request, errParam === 'access_denied' ? 'google_access_denied' : 'oauth_failed')
+    if (!code || !state) return redirectToSignin(request, 'missing_code_or_state')
 
-    // Verify state cookie → guards against CSRF and stale/leaked callbacks.
     const store = await cookies()
     const stateCookie = store.get('oauth_state')?.value
     const nextCookie = store.get('oauth_next')?.value ?? '/'
-    if (!stateCookie || stateCookie !== state) {
-      return redirectToSignin(request, 'invalid_state')
-    }
-    // One-shot — invalidate immediately.
+    if (!stateCookie || stateCookie !== state) return redirectToSignin(request, 'invalid_state')
     store.delete('oauth_state')
     store.delete('oauth_next')
 
     const profile = await exchangeCodeForProfile(code)
+    if (!isAllowedEmail(profile.email)) return redirectToSignin(request, 'wrong_domain')
 
-    // Resolution order:
-    //   1. Existing googleId  → this is a returning Google user, sign in.
-    //   2. Existing email     → email match on a password user; link Google to it.
-    //   3. Neither            → brand new user, create from Google profile.
-    let user = await getUserByGoogleId(profile.sub)
-    if (!user) {
-      const emailUser = await getUserByEmail(profile.email)
-      if (emailUser) {
-        // Link Google to the existing email account.
-        const linked = await linkGoogleAccount(
-          emailUser._id as ObjectId,
-          profile.sub,
-        )
-        if (!linked) {
-          throw new ConflictError(
-            'This email is already linked to a different Google account',
-          )
-        }
-        user = { ...emailUser, googleId: profile.sub }
-      } else {
-        // Fresh signup via Google.
-        try {
-          user = await createUserFromGoogle({
-            email: profile.email,
-            name: profile.name || profile.email.split('@')[0],
-            googleId: profile.sub,
-            profileImage: profile.picture,
-          })
-        } catch (e) {
-          // Extremely tight race: user created between our getUserByEmail and
-          // our insert. Retry the whole resolution by falling through.
-          if (e instanceof ConflictError) {
-            const raced = await getUserByEmail(profile.email)
-            if (raced) {
-              const linked = await linkGoogleAccount(
-                raced._id as ObjectId,
-                profile.sub,
-              )
-              if (linked) user = { ...raced, googleId: profile.sub }
-            }
-          }
-          if (!user) throw e
-        }
-      }
+    const user = await findOrCreateVerifiedUser(profile.email)
+    if (!user?._id) throw new AuthError('oauth_failed')
+
+    // Fill in cosmetic fields only if the user hasn't set their own yet.
+    if (!user.isProfileComplete && profile.name && user.name === profile.email.split('@')[0]) {
+      await updateUser(user._id, { name: profile.name, ...(profile.picture && !user.profileImage ? { profileImage: profile.picture } : {}) })
     }
 
-    if (!user?._id) throw new AuthError('Could not establish session')
-
-    // Issue our own JWT — same shape as email/password signin. From now on
-    // every route sees `auth_token` and treats this identically.
-    const token = jwt.sign(
-      { userId: user._id.toString(), email: user.email },
-      env.JWT_SECRET,
-      { expiresIn: '7d' },
-    )
+    const token = jwt.sign({ userId: user._id.toString(), email: user.email }, env.JWT_SECRET, {
+      expiresIn: '7d',
+      algorithm: 'HS256',
+    })
     store.set('auth_token', token, {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
@@ -119,40 +75,27 @@ export async function GET(request: NextRequest) {
       path: '/',
       maxAge: 7 * 24 * 60 * 60,
     })
+    void cacheDel(cacheKeys.user(user._id.toString()))
 
-    // Only allow same-origin redirects — reject `//evil.com` shenanigans.
+    // Same-origin relative paths only. Backslashes/tabs are treated as "/" by browsers.
     const safeNext =
-      nextCookie.startsWith('/') && !nextCookie.startsWith('//') ? nextCookie : '/'
-    return NextResponse.redirect(new URL(safeNext, request.url))
+      nextCookie.startsWith('/') && !nextCookie.startsWith('//') && !/[\\\u0000-\u001f\u007f]/.test(nextCookie)
+        ? nextCookie
+        : '/'
+    const dest = user.isProfileComplete
+      ? safeNext
+      : `/onboarding/complete-profile?next=${encodeURIComponent(safeNext)}`
+    return NextResponse.redirect(new URL(dest, request.url))
   } catch (error) {
-    log.warn('google oauth callback failed', {
-      err: error instanceof Error ? error.message : String(error),
-    })
-    // Fall through to a friendly signin-page redirect. Users don't want a
-    // JSON error blob — the frontend can display a message based on ?error=.
-    return handleApiErrorOrRedirect(request, error)
+    log.warn('google oauth callback failed', { err: error instanceof Error ? error.message : String(error) })
+    const msg = error instanceof Error ? error.message : ''
+    const code = error instanceof ApiError && error.statusCode === 501 ? 'google_not_configured' : msg
+    return redirectToSignin(request, KNOWN_ERRORS.has(code) ? code : 'oauth_failed')
   }
 }
 
-/** Redirect back to /auth/signin with an error code the frontend can render. */
 function redirectToSignin(request: NextRequest, error: string): NextResponse {
   const url = new URL('/auth/signin', request.url)
-  url.searchParams.set('error', error)
-  return NextResponse.redirect(url)
-}
-
-/**
- * For the callback route we prefer a browser-friendly redirect over a raw
- * JSON error for most cases. Truly unexpected errors still get the JSON path
- * so Vercel logs surface them.
- */
-function handleApiErrorOrRedirect(
-  request: NextRequest,
-  error: unknown,
-): NextResponse {
-  const msg = error instanceof Error ? error.message : String(error)
-  const encoded = encodeURIComponent(msg.slice(0, 100)) || 'oauth_failed'
-  const url = new URL('/auth/signin', request.url)
-  url.searchParams.set('error', encoded)
+  url.searchParams.set('error', KNOWN_ERRORS.has(error) ? error : 'oauth_failed')
   return NextResponse.redirect(url)
 }

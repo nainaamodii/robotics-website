@@ -111,25 +111,13 @@ export async function enforceLimit(
 // Tunable — pick generous limits so real users never notice.
 // ────────────────────────────────────────────────────────────
 
-/** Signup: rare per user, but expensive (bcrypt + email lookup). 5/hour/IP. */
-export const signupLimiter = () =>
-  limiter({ requests: 5, window: '1 h', prefix: 'rl:signup' })
+/** OTP request: every call sends an email — protect cost and victims' inboxes. 8/10min/IP. */
+export const otpRequestLimiter = () =>
+  limiter({ requests: 8, window: '10 m', prefix: 'rl:otp-request' })
 
-/** Signin: users retry on typos — allow burst, quick window. 10/5min/IP. */
-export const signinLimiter = () =>
-  limiter({ requests: 10, window: '5 m', prefix: 'rl:signin' })
-
-/**
- * Forgot-password: MOST abusable — every call may send an email. Tight limit
- * both to protect email costs AND to protect target-user's inbox.
- * 3/hour/IP.
- */
-export const forgotPasswordLimiter = () =>
-  limiter({ requests: 3, window: '1 h', prefix: 'rl:forgot' })
-
-/** Reset-password: tokens are single-use, so this mostly limits guessing. 5/hour/IP. */
-export const resetPasswordLimiter = () =>
-  limiter({ requests: 5, window: '1 h', prefix: 'rl:reset' })
+/** OTP verify: per-code attempts are capped in the DB; this caps IP-wide guessing. 20/10min/IP. */
+export const otpVerifyLimiter = () =>
+  limiter({ requests: 20, window: '10 m', prefix: 'rl:otp-verify' })
 
 /** Team-code validation: stops someone enumerating invite codes. 30/min/user. */
 export const teamCodeLimiter = () =>

@@ -12,9 +12,10 @@ import {
   CreateProjectSchema,
   ObjectIdSchema,
   ParticipateSchema,
-  ResetPasswordSchema,
+  MobileNumberSchema,
+  OtpRequestSchema,
+  OtpVerifySchema,
   SendInvitationSchema,
-  SignupSchema,
   UpdateUserSchema,
 } from '../validation'
 
@@ -34,33 +35,19 @@ describe('ObjectIdSchema', () => {
   })
 })
 
-describe('SignupSchema', () => {
-  it('accepts a minimal valid signup', () => {
-    const r = SignupSchema.safeParse({
-      email: 'user@example.com',
-      password: 'longenough1',
-      name: 'A. User',
-      department: 'CSE',
-    })
-    expect(r.success).toBe(true)
-  })
+describe('OTP schemas', () => {
   it('lowercases + trims email', () => {
-    const r = SignupSchema.safeParse({
-      email: '  User@Example.COM  ',
-      password: 'longenough1',
-      name: 'A. User',
-      department: 'CSE',
-    })
+    const r = OtpRequestSchema.safeParse({ email: '  User@Example.COM  ' })
     expect(r.success && r.data.email).toBe('user@example.com')
   })
-  it('rejects short passwords', () => {
-    const r = SignupSchema.safeParse({
-      email: 'user@example.com',
-      password: 'short',
-      name: 'A. User',
-      department: 'CSE',
-    })
-    expect(r.success).toBe(false)
+  it('rejects malformed email', () => {
+    expect(OtpRequestSchema.safeParse({ email: 'nope' }).success).toBe(false)
+  })
+  it('accepts a 6-digit code', () => {
+    expect(OtpVerifySchema.safeParse({ email: 'a@b.co', code: ' 042913 ' }).success).toBe(true)
+  })
+  it.each(['12345', '1234567', 'abcdef', '12 456'])('rejects bad code %s', (code) => {
+    expect(OtpVerifySchema.safeParse({ email: 'a@b.co', code }).success).toBe(false)
   })
 })
 
@@ -154,12 +141,20 @@ describe('SendInvitationSchema (union: id OR email)', () => {
   })
 })
 
-describe('ResetPasswordSchema', () => {
-  it('requires a min-length password', () => {
-    const r = ResetPasswordSchema.safeParse({
-      token: 'a'.repeat(64),
-      password: 'short',
-    })
-    expect(r.success).toBe(false)
+describe('MobileNumberSchema', () => {
+  it.each(['6000000000', '7123456789', '8999999999', '9876543210'])('accepts %s', (n) => {
+    expect(MobileNumberSchema.safeParse(n).success).toBe(true)
+  })
+  it.each([
+    ['starts with 5', '5876543210'],
+    ['starts with 0', '0876543210'],
+    ['9 digits', '987654321'],
+    ['11 digits', '98765432101'],
+    ['has +91', '+919876543210'],
+    ['has spaces', '98765 43210'],
+    ['letters', '98765abcde'],
+    ['empty', ''],
+  ])('rejects %s', (_label, n) => {
+    expect(MobileNumberSchema.safeParse(n).success).toBe(false)
   })
 })

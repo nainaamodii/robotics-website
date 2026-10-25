@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
     // `next` lets the login form say "after Google auth, send me to /some/page"
     const nextParam = request.nextUrl.searchParams.get('next') ?? '/'
     // Reject open redirects — only same-origin relative paths allowed.
-    const safeNext = nextParam.startsWith('/') && !nextParam.startsWith('//')
-      ? nextParam
-      : '/'
+    const safeNext =
+      nextParam.startsWith('/') && !nextParam.startsWith('//') && !/[\\\u0000-\u001f\u007f]/.test(nextParam)
+        ? nextParam
+        : '/'
 
     const state = randomBytes(24).toString('hex')
 

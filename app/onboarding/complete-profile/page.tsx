@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle, Check, Loader2, UserCircle, X } from "lucide-react"
 import { motion } from "framer-motion"
+import Starfield from "@/components/realm/starfield"
 import { useAuth } from "@/lib/auth-context"
 
 const BRANCHES = [
@@ -25,7 +26,7 @@ const CODENAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]*$/
 function CompleteProfileInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, refreshUser, updateProfile } = useAuth()
+  const { user, refreshUser } = useAuth()
   const nextParam = searchParams.get("next") ?? "/"
   const safeNext = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/"
 
@@ -38,6 +39,7 @@ function CompleteProfileInner() {
   const isMnnitEmail = useMemo(() => user?.email?.endsWith("@mnnit.ac.in") ?? false, [user])
 
   const [isMnnit, setIsMnnit] = useState(isMnnitEmail)
+  const [fullName, setFullName] = useState("")
   const [rollNo, setRollNo] = useState("")
   const [phone, setPhone] = useState("")
   const [branch, setBranch] = useState("")
@@ -81,13 +83,14 @@ function CompleteProfileInner() {
   }, [codename, codenameValid.ok])
 
   const canSubmit = useMemo(() => {
-    if (!phone.trim()) return false
+    if (fullName.trim().length < 2) return false
+    if (!/^[6-9]\d{9}$/.test(phone)) return false
     if (!branch) return false
     if (isMnnit && !rollNo.trim()) return false
     if (!isMnnit && !college.trim()) return false
     if (codename && (!codenameValid.ok || codenameAvailable === false)) return false
     return true
-  }, [phone, branch, isMnnit, rollNo, college, codename, codenameValid.ok, codenameAvailable])
+  }, [fullName, phone, branch, isMnnit, rollNo, college, codename, codenameValid.ok, codenameAvailable])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -100,6 +103,7 @@ function CompleteProfileInner() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
+          name: fullName.trim(),
           phone: phone.trim(),
           branch: branch.trim(),
           isMnnit,
@@ -113,7 +117,6 @@ function CompleteProfileInner() {
         setError(d?.error ?? "Failed to complete profile")
         return
       }
-      await updateProfile({ isProfileComplete: true })
       await refreshUser()
       router.replace(safeNext)
     } catch (e: any) {
@@ -126,7 +129,8 @@ function CompleteProfileInner() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center px-6 py-12">
+    <div className="dark realm min-h-screen relative flex items-center justify-center px-6 py-12">
+      <Starfield />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -154,7 +158,9 @@ function CompleteProfileInner() {
             <div className="flex items-center gap-3 p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
               <button
                 type="button"
-                onClick={() => setIsMnnit(!isMnnit)}
+                onClick={() => { if (!isMnnitEmail) setIsMnnit(!isMnnit) }}
+                disabled={isMnnitEmail}
+                aria-label="MNNIT student"
                 className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                   isMnnit
                     ? "bg-emerald-500 border-emerald-500"
@@ -169,6 +175,18 @@ function CompleteProfileInner() {
                   <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Auto-detected from your @mnnit.ac.in email</p>
                 )}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-[var(--fg-tertiary)] uppercase tracking-wider font-medium mb-2">Full Name *</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                placeholder="As it should appear on your team roster"
+                maxLength={100}
+                className="w-full rounded-xl bg-[var(--bg)] border border-[var(--border)] px-4 py-3 text-[var(--fg)] placeholder:text-[var(--fg-tertiary)] focus:border-[var(--fg)] focus:outline-none transition-colors text-sm"
+              />
             </div>
 
             {/* Registration number — MNNIT only */}
@@ -207,11 +225,19 @@ function CompleteProfileInner() {
               <input
                 type="tel"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                maxLength={20}
+                onChange={e => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                inputMode="numeric"
+                autoComplete="tel-national"
+                placeholder="9876543210"
+                maxLength={10}
+                aria-invalid={phone.length > 0 && !/^[6-9]\d{9}$/.test(phone)}
                 className="w-full rounded-xl bg-[var(--bg)] border border-[var(--border)] px-4 py-3 text-[var(--fg)] placeholder:text-[var(--fg-tertiary)] focus:border-[var(--fg)] focus:outline-none transition-colors text-sm"
               />
+              {phone.length > 0 && !/^[6-9]\d{9}$/.test(phone) && (
+                <p className="mt-1.5 text-xs text-red-500">
+                  {/^[6-9]/.test(phone) ? `${phone.length}/10 digits` : "Must start with 6, 7, 8 or 9"}
+                </p>
+              )}
             </div>
 
             {/* Branch */}

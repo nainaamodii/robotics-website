@@ -7,11 +7,12 @@ import { ProjectForm } from "@/components/admin/project-form"
 import { ProjectsList } from "@/components/admin/projects-list"
 import { MediaUploader } from "@/components/admin/media-uploader"
 import { EventsManager } from "@/components/admin/events-manager"
+import { SmtpSettings } from "@/components/admin/smtp-settings"
 import { motion } from "framer-motion"
-import { Plus, ImageIcon, Users, Calendar } from "lucide-react"
+import { Plus, ImageIcon, Users, Calendar, Mail } from "lucide-react"
 import Link from "next/link"
 
-type AdminTab = "list" | "add" | "media" | "events"
+type AdminTab = "list" | "add" | "media" | "events" | "email"
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("list")
@@ -46,6 +47,7 @@ export default function AdminPage() {
     { key: "add", label: "Add Project", icon: <Plus size={16} /> },
     { key: "events", label: "Events", icon: <Calendar size={16} /> },
     { key: "media", label: "Media", icon: <ImageIcon size={16} /> },
+    { key: "email", label: "Email / SMTP", icon: <Mail size={16} /> },
   ]
 
   return (
@@ -55,7 +57,7 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto px-6 lg:px-8 pt-28 pb-20">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="font-display text-4xl font-bold text-[var(--fg)] tracking-tight mb-2">Admin Dashboard</h1>
-          <p className="text-[var(--fg-secondary)]">Manage projects, events, and media</p>
+          <p className="text-[var(--fg-secondary)]">Manage projects, events, media, email delivery and team registrations</p>
         </motion.div>
 
         <div className="flex flex-wrap items-center gap-2 mb-10">
@@ -74,13 +76,14 @@ export default function AdminPage() {
           ))}
 
           <Link href="/admin/participations" className="px-5 py-2.5 rounded-full text-sm font-medium bg-[var(--bg-secondary)] text-[var(--fg-secondary)] border border-[var(--border)] hover:border-[var(--border-hover)] transition-all flex items-center gap-2">
-            <Users size={16} /> Participations
+            <Users size={16} /> Team Registrations
           </Link>
         </div>
 
         {activeTab === "list" && <ProjectsList key={refreshKey} onProjectDeleted={() => setRefreshKey(k => k + 1)} />}
         {activeTab === "add" && <ProjectForm onSuccess={handleProjectAdded} />}
         {activeTab === "events" && <EventsManager />}
+        {activeTab === "email" && <SmtpSettings />}
         {activeTab === "media" && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <div className="mb-6">

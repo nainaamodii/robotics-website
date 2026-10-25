@@ -27,7 +27,7 @@ export async function createCompetition(data: Omit<Competition, '_id' | 'teams'>
     // Link this competition back to the Event
     await db.collection('events').updateOne(
         { _id: new ObjectId(data.eventId) },
-        { $push: { competitions: result.insertedId } }
+        { $push: { competitions: result.insertedId } as any }
     )
 
     return result
@@ -86,7 +86,7 @@ export async function deleteCompetition(id: string) {
         // 2. Remove the competition reference from the Event
         await db.collection('events').updateOne(
             { _id: comp.eventId },
-            { $pull: { competitions: compId } }
+            { $pull: { competitions: compId } as any }
         )
     }
 

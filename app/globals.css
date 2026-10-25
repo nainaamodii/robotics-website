@@ -217,3 +217,70 @@
     background-clip: text;
   }
 }
+
+/* ── Realm: mission-control UI for the sign-in → events → registration flow ── */
+@layer components {
+  .realm {
+    --bg: #05060a;
+    --bg-secondary: #0b0d13;
+    --bg-tertiary: #12151d;
+    --fg: #f4f5f7;
+    --fg-secondary: #aeb3bf;
+    --fg-tertiary: #7d8392;
+    --border: rgba(255, 255, 255, 0.12);
+    --border-hover: rgba(255, 255, 255, 0.32);
+    background: var(--bg);
+    color: var(--fg);
+  }
+  .realm-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--fg-secondary);
+  }
+  .realm-title {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 0.88;
+    color: #fff;
+  }
+  /* Tesla-style: flat, translucent, square, one weight of emphasis. */
+  .realm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 44px;
+    padding: 0 1.75rem;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.94);
+    color: #05060a;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, opacity 0.2s;
+  }
+  .realm-btn:hover:not(:disabled) { background: transparent; color: #fff; }
+  .realm-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .realm-btn-ghost {
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(8px);
+  }
+  .realm-btn-ghost:hover:not(:disabled) { background: #fff; color: #05060a; border-color: #fff; }
+  .realm-panel {
+    border: 1px solid var(--border);
+    background: rgba(11, 13, 19, 0.72);
+    backdrop-filter: blur(14px);
+  }
+  .realm :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  @keyframes realm-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.9; } }
+  @keyframes realm-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .realm *, .realm *::before, .realm *::after { animation: none !important; transition-duration: 0.01ms !important; }
+  }
+}
