@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth-guard'
 import { CompleteProfileSchema } from '@/lib/validation'
-import { updateUser, setUserCodename } from '@/lib/models/user'
-import { handleApiError } from '@/lib/errors'
+import { updateUser, setUserCodename, getUserById } from '@/lib/models/user'
+import { assertAllowedEmail } from '@/lib/email-policy'
+import { AuthError, handleApiError } from '@/lib/errors'
 import { cacheDel, cacheKeys } from '@/lib/redis'
 
 export async function POST(request: Request) {
@@ -11,14 +12,24 @@ export async function POST(request: Request) {
     const body = await request.json()
     const data = CompleteProfileSchema.parse(body)
 
+    // MNNIT status comes from the verified email, never from the request body.
+    const account = await getUserById(userId)
+    if (!account) throw new AuthError('Account not found')
+    assertAllowedEmail(account.email)
+    const isMnnit = account.email.endsWith('@mnnit.ac.in')
+    if (isMnnit && !data.rollNo) {
+      return NextResponse.json({ error: 'Registration number is required for MNNIT students' }, { status: 400 })
+    }
+
     const updates: Record<string, any> = {
+      name: data.name,
       phone: data.phone,
       department: data.branch,
-      isMnnit: data.isMnnit,
+      isMnnit,
       isProfileComplete: true,
     }
 
-    if (data.isMnnit) {
+    if (isMnnit) {
       updates.rollNo = data.rollNo
       updates.college = 'MNNIT Allahabad'
     } else {

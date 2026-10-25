@@ -2,6 +2,8 @@ import { cookies } from 'next/headers'
 import jwt from 'jsonwebtoken'
 import { env } from './env'
 import { AuthError, ForbiddenError } from './errors'
+import { getUserById } from './models/user'
+import { assertAllowedEmail } from './email-policy'
 
 interface UserTokenPayload {
   userId: string
@@ -48,7 +50,7 @@ export async function isAdmin(): Promise<boolean> {
 
 /**
  * Resolve both identities at once. Students authenticate with `auth_token`
- * (Google sign-in) and admins with `admin_token` (admin password) — two
+ * (email OTP sign-in) and admins with `admin_token` (admin password) — two
  * independent cookies. Endpoints that serve either audience (e.g. team detail)
  * use this instead of `requireUser()`, which would wrongly 401 a pure admin.
  */
@@ -82,4 +84,20 @@ export async function requireSelfOrAdmin(
   if (!userId && !admin) throw new AuthError()
   if (!admin && userId !== targetUserId) throw new ForbiddenError()
   return { userId, isAdmin: admin }
+}
+
+/**
+ * Authenticated AND email-verified. Every OTP sign-in verifies the address, so
+ * this only rejects sessions that predate OTP auth (e.g. old Google logins)
+ * until the user signs in again with a code.
+ */
+export async function requireVerifiedUser(): Promise<string> {
+  const userId = await requireUser()
+  const user = await getUserById(userId)
+  if (!user) throw new AuthError('Account not found')
+  assertAllowedEmail(user.email)
+  if (!user.emailVerified) {
+    throw new ForbiddenError('Verify your email to continue. Sign out and sign in with a code.')
+  }
+  return userId
 }

@@ -21,20 +21,37 @@ export const ObjectIdSchema = z
 // USER
 // ────────────────────────────────────────────────────────────
 
-export const SignupSchema = z.object({
-  email: z.string().email().max(200).toLowerCase().trim(),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
-  name: z.string().min(1).max(100).trim(),
-  rollNo: z.string().max(20).trim().optional(),
-  department: z.string().min(1).max(100).trim(),
-})
-export type SignupInput = z.infer<typeof SignupSchema>
+/**
+ * Indian mobile number: exactly 10 digits, first digit 6-9. No spaces, dashes or +91 —
+ * the UI strips non-digits as you type, and the API accepts only the clean form.
+ */
+export const MobileNumberSchema = z
+  .string()
+  .trim()
+  .regex(/^[6-9]\d{9}$/, 'Enter a 10-digit mobile number starting with 6, 7, 8 or 9')
 
-export const SigninSchema = z.object({
-  email: z.string().email().max(200).toLowerCase().trim(),
-  password: z.string().min(1).max(100),
+const EmailField = z.string().trim().toLowerCase().email().max(200)
+
+export const OtpRequestSchema = z.object({ email: EmailField })
+export type OtpRequestInput = z.infer<typeof OtpRequestSchema>
+
+export const OtpVerifySchema = z.object({
+  email: EmailField,
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
-export type SigninInput = z.infer<typeof SigninSchema>
+export type OtpVerifyInput = z.infer<typeof OtpVerifySchema>
+
+export const SmtpSettingsSchema = z.object({
+  host: z.string().trim().min(1).max(200),
+  port: z.coerce.number().int().min(1).max(65535),
+  secure: z.boolean(),
+  user: z.string().trim().min(1).max(200),
+  /** Empty/omitted keeps the stored password. */
+  password: z.string().max(500).optional(),
+  fromEmail: z.string().trim().email().max(200),
+  fromName: z.string().trim().max(100).default(''),
+})
+export type SmtpSettingsInput = z.infer<typeof SmtpSettingsSchema>
 
 /**
  * Codename format: 3-20 chars, alphanumeric + underscore. No leading digit.
@@ -59,14 +76,9 @@ export const UpdateUserSchema = z
     name: z.string().min(1).max(100).trim().optional(),
     rollNo: z.string().max(20).trim().optional(),
     department: z.string().max(100).trim().optional(),
-    phone: z
-      .string()
-      .max(20)
-      .regex(/^[+\d\s\-()]*$/, 'Invalid phone number')
-      .optional(),
+    phone: z.union([MobileNumberSchema, z.literal('')]).optional(),
     college: z.string().max(200).trim().optional(),
-    isMnnit: z.boolean().optional(),
-    isProfileComplete: z.boolean().optional(),
+    // isMnnit / isProfileComplete are server-derived (onboarding route) — never client-settable.
     profileImage: z.string().url().max(500).optional(),
     bio: z.string().max(1000).optional(),
   })
@@ -74,7 +86,8 @@ export const UpdateUserSchema = z
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>
 
 export const CompleteProfileSchema = z.object({
-  phone: z.string().min(1, 'Phone number is required').max(20).regex(/^[+\d\s\-()]*$/, 'Invalid phone number'),
+  name: z.string().trim().min(2, 'Full name is required').max(100),
+  phone: MobileNumberSchema,
   branch: z.string().min(1, 'Branch is required').max(100).trim(),
   isMnnit: z.boolean(),
   rollNo: z.string().max(20).trim().optional(),
@@ -316,18 +329,6 @@ export const TransferLeadershipSchema = z.object({
 })
 export type TransferLeadershipInput = z.infer<typeof TransferLeadershipSchema>
 
-/** Body for POST /api/auth/forgot-password — just email. */
-export const ForgotPasswordSchema = z.object({
-  email: z.string().email().max(200).toLowerCase().trim(),
-})
-export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>
-
-/** Body for POST /api/auth/reset-password — token + new password. */
-export const ResetPasswordSchema = z.object({
-  token: z.string().min(32).max(200),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
-})
-export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>
 
 // ────────────────────────────────────────────────────────────
 // PROJECT ↔ TEAM ASSIGNMENT
@@ -351,7 +352,7 @@ export type AssignTeamToProjectInput = z.infer<typeof AssignTeamToProjectSchema>
 export const SendInvitationSchema = z.union([
   z.object({ invitedUser: ObjectIdSchema }),
   z.object({
-    email: z.string().email().max(200).toLowerCase().trim(),
+    email: z.string().trim().toLowerCase().email().max(200),
   }),
   z.object({
     codename: CodenameSchema, // lowercased by the schema

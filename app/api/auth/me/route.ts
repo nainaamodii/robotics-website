@@ -23,6 +23,7 @@ export async function GET() {
     return NextResponse.json({
       _id: user._id,
       email: user.email,
+      emailVerified: user.emailVerified ?? false,
       name: user.name,
       rollNo: user.rollNo,
       department: user.department,

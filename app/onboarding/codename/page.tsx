@@ -12,6 +12,7 @@ import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle, Check, Loader2, Sparkles, X } from "lucide-react"
 import { motion } from "framer-motion"
+import Starfield from "@/components/realm/starfield"
 import { useAuth } from "@/lib/auth-context"
 
 // Same regex the backend enforces via CodenameSchema.
@@ -121,7 +122,8 @@ function CodenameSetupInner() {
     : null
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center px-6">
+    <div className="dark realm min-h-screen relative flex items-center justify-center px-6">
+      <Starfield />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

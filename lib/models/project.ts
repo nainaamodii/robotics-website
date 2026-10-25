@@ -14,7 +14,7 @@ export interface Project {
   description: string
   shortDescription: string
   category: string
-  image: string
+  image?: string
   featured: boolean
   published: boolean
   createdAt: Date
@@ -90,7 +90,7 @@ export async function updateProject(id: string | ObjectId, updates: Partial<Proj
     { returnDocument: 'after' }
   )
 
-  return result.value || result
+  return result
 }
 
 export async function deleteProject(id: string | ObjectId) {

@@ -17,7 +17,7 @@ const defaults = {
   ],
 }
 
-const ease = [0.32, 0.72, 0, 1]
+const ease: [number, number, number, number] = [0.32, 0.72, 0, 1]
 
 export default function WhoAreWe() {
   const { content } = useSiteContent("who-are-we", defaults)

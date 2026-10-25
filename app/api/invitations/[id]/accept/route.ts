@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { acceptInvitation } from '@/lib/models/invitation'
-import { requireUser } from '@/lib/auth-guard'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 import { ObjectIdSchema } from '@/lib/validation'
 import { handleApiError } from '@/lib/errors'
 import { cacheDel, cacheKeys } from '@/lib/redis'
@@ -14,7 +14,7 @@ type Props = { params: Promise<{ id: string }> }
  */
 export async function POST(_request: NextRequest, { params }: Props) {
   try {
-    const userId = await requireUser()
+    const userId = await requireVerifiedUser()
     const { id: invitationId } = await params
     ObjectIdSchema.parse(invitationId)
 

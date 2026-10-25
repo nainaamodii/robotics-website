@@ -23,7 +23,7 @@ import { promisify } from "node:util";
 import { readdir, readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type EmbedContentRequest } from "@google/generative-ai";
 import { getDB } from "../lib/db"; // adjust relative path if your scripts/ layout differs
 
 const execFileAsync = promisify(execFile);
@@ -165,7 +165,8 @@ async function embed(text: string): Promise<number[]> {
         ? {
             content: { role: "user", parts: [{ text }] },
             outputDimensionality: EMBEDDING_OUTPUT_DIMENSIONALITY,
-          }
+            // The REST API accepts outputDimensionality; the SDK's request type omits it.
+          } as EmbedContentRequest
         : text,
     ),
   );

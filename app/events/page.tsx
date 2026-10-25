@@ -1,293 +1,201 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import Navbar from "@/components/navbar"
-import Footer from "@/components/footer"
-import { Calendar, MapPin, Users, ChevronDown, ChevronUp, Loader2, Trophy, Clock, CheckCircle2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { AnimatePresence, motion } from "framer-motion"
+import { ArrowRight, Calendar, ChevronDown, Loader2, MapPin, Users } from "lucide-react"
+import RealmPage, { Eyebrow } from "@/components/realm/realm-page"
 
-const ease = [0.32, 0.72, 0, 1] as const
+const ease: [number, number, number, number] = [0.32, 0.72, 0, 1]
 
 export default function EventsPage() {
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeEventId, setActiveEventId] = useState("")
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming")
 
   useEffect(() => {
     fetch("/api/events")
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setEvents(data)
-          const upcoming = data.filter((e: any) => e.status === "upcoming")
-          if (upcoming.length > 0) {
-            setActiveEventId(upcoming[0]._id)
-            setTab("upcoming")
-          } else {
-            setActiveEventId(data[0]._id)
-            setTab("past")
-          }
-        }
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return
+        setEvents(data)
+        if (!data.some((e: any) => e.status === "upcoming") && data.length) setTab("past")
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  const upcomingEvents = useMemo(() => events.filter(e => e.status === "upcoming"), [events])
-  const pastEvents = useMemo(() => events.filter(e => e.status !== "upcoming"), [events])
-  const displayedEvents = tab === "upcoming" ? upcomingEvents : pastEvents
-  const activeEvent = events.find(e => e._id === activeEventId) || displayedEvents[0]
-
-  useEffect(() => {
-    const list = tab === "upcoming" ? upcomingEvents : pastEvents
-    if (list.length > 0 && !list.find(e => e._id === activeEventId)) {
-      setActiveEventId(list[0]._id)
-    }
-  }, [tab])
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[var(--bg)]">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 text-[var(--fg-tertiary)] animate-spin" />
-        </div>
-        <Footer />
-      </main>
-    )
-  }
-
-  if (events.length === 0) {
-    return (
-      <main className="min-h-screen bg-[var(--bg)]">
-        <Navbar />
-        <section className="pt-32 pb-16 px-6">
-          <div className="max-w-[1200px] mx-auto">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ ease }}>
-              <p className="font-mono text-xs uppercase tracking-widest text-[var(--fg-tertiary)] mb-4">Events</p>
-              <h1 className="font-display text-[clamp(3.5rem,10vw,8rem)] uppercase text-[var(--fg)] tracking-tight leading-[0.85] mb-6">
-                Our<br />Events
-              </h1>
-              <p className="text-lg text-[var(--fg-secondary)] max-w-2xl tracking-[-0.01em]">
-                Workshops, hackathons, and inter-college competitions — all designed to push your skills and build things that matter.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-center py-16 mt-12 border border-dashed border-[var(--border)]"
-            >
-              <p className="text-[var(--fg-tertiary)] text-sm mb-1">No events right now</p>
-              <p className="text-[var(--fg-secondary)] text-sm">New events are announced at the start of each semester. Stay tuned.</p>
-            </motion.div>
-          </div>
-        </section>
-        <Footer />
-      </main>
-    )
-  }
-
-  const isPast = activeEvent?.status !== "upcoming"
+  const upcoming = useMemo(() => events.filter((e) => e.status === "upcoming"), [events])
+  const past = useMemo(() => events.filter((e) => e.status !== "upcoming"), [events])
+  const shown = tab === "upcoming" ? upcoming : past
 
   return (
-    <main className="min-h-screen bg-[var(--bg)]">
-      <Navbar />
-
-      <section className="pt-32 pb-12 px-6">
+    <RealmPage>
+      <section className="px-6 pt-20 pb-14 md:pt-28">
         <div className="max-w-[1200px] mx-auto">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ ease }}>
-            <p className="font-mono text-xs uppercase tracking-widest text-[var(--fg-tertiary)] mb-4">Events</p>
-            <h1 className="font-display text-[clamp(3rem,8vw,6rem)] uppercase text-[var(--fg)] tracking-tight leading-[0.85] mb-4">
-              Our<br />Events
-            </h1>
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease }}>
+            <Eyebrow index="01">Mission manifest</Eyebrow>
+            <h1 className="realm-title mt-6 text-[clamp(4rem,14vw,12rem)]">Missions</h1>
+            <p className="mt-8 max-w-xl text-[15px] leading-relaxed text-[var(--fg-secondary)]">
+              Workshops, hackathons and inter-college competitions. Pick a mission, form your crew,
+              and register — every crew member is email-verified.
+            </p>
           </motion.div>
 
-          {/* Upcoming / Past tabs */}
-          <div className="flex gap-1 mt-8 mb-6 bg-[var(--bg-secondary)] rounded-full p-1 w-fit">
-            <button
-              onClick={() => setTab("upcoming")}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
-                tab === "upcoming"
-                  ? "bg-[var(--fg)] text-[var(--bg)]"
-                  : "text-[var(--fg-secondary)] hover:text-[var(--fg)]"
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Upcoming {upcomingEvents.length > 0 && `(${upcomingEvents.length})`}
-            </button>
-            <button
-              onClick={() => setTab("past")}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
-                tab === "past"
-                  ? "bg-[var(--fg)] text-[var(--bg)]"
-                  : "text-[var(--fg-secondary)] hover:text-[var(--fg)]"
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Past {pastEvents.length > 0 && `(${pastEvents.length})`}
-            </button>
-          </div>
-
-          {/* Event selector pills */}
-          <div className="flex flex-wrap gap-2">
-            {displayedEvents.map(event => (
-              <button
-                key={event._id}
-                onClick={() => setActiveEventId(event._id)}
-                className={`px-5 py-2 rounded-full text-sm transition-all font-mono uppercase text-xs tracking-wider ${
-                  activeEventId === event._id
-                    ? "bg-[var(--fg)] text-[var(--bg)]"
-                    : "text-[var(--fg-secondary)] border border-[var(--border)] hover:border-[var(--border-hover)]"
-                }`}
-              >
-                {event.name}
-              </button>
-            ))}
+          <div role="tablist" aria-label="Mission status" className="mt-12 flex gap-8 border-b border-[var(--border)]">
+            {(["upcoming", "past"] as const).map((t) => {
+              const count = t === "upcoming" ? upcoming.length : past.length
+              return (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  onClick={() => setTab(t)}
+                  className={`relative pb-4 text-xs uppercase tracking-[0.22em] transition-colors ${
+                    tab === t ? "text-white" : "text-[var(--fg-tertiary)] hover:text-white"
+                  }`}
+                >
+                  {t === "upcoming" ? "Upcoming" : "Completed"} <span className="ml-1 text-[var(--fg-tertiary)]">{count}</span>
+                  {tab === t && <motion.span layoutId="tab-line" className="absolute inset-x-0 -bottom-px h-px bg-white" />}
+                </button>
+              )
+            })}
           </div>
         </div>
       </section>
 
-      {activeEvent && (
-        <section className="py-12 px-6">
-          <div className="max-w-[1200px] mx-auto grid lg:grid-cols-3 gap-8">
-            <motion.div key={`${activeEventId}-info`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="lg:col-span-1">
-              <div className="sticky top-20 border border-[var(--border)] bg-[var(--bg)] p-6 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-mono text-xs uppercase tracking-widest text-[var(--fg-tertiary)]">Event Details</h3>
-                  <span className={`px-2.5 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider ${
-                    isPast
-                      ? "bg-[var(--bg-secondary)] text-[var(--fg-tertiary)] border border-[var(--border)]"
-                      : "bg-green-500/10 text-green-500 border border-green-500/20"
-                  }`}>
-                    {isPast ? "Concluded" : "Upcoming"}
-                  </span>
-                </div>
-
-                <AnimatePresence mode="wait">
-                  <motion.div key={activeEventId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <h2 className="text-xl text-[var(--fg)] font-display mb-2">{activeEvent.name}</h2>
-                    <p className="text-sm text-[var(--fg-secondary)] italic mb-3">{activeEvent.tagline}</p>
-                    <p className="text-[var(--fg-secondary)] text-sm leading-relaxed">{activeEvent.description}</p>
-                  </motion.div>
-                </AnimatePresence>
-
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-3 text-[var(--fg-secondary)]">
-                    <Calendar className="w-4 h-4 text-[var(--fg-tertiary)]" /> {activeEvent.date}
-                  </div>
-                  <div className="flex items-center gap-3 text-[var(--fg-secondary)]">
-                    <MapPin className="w-4 h-4 text-[var(--fg-tertiary)]" /> {activeEvent.location}
-                  </div>
-                  <div className="flex items-center gap-3 text-[var(--fg-secondary)]">
-                    <Users className="w-4 h-4 text-[var(--fg-tertiary)]" /> {activeEvent.participantsLabel || "Open for all"}
-                  </div>
-                </div>
-
-                {activeEvent.highlights?.length > 0 && (
-                  <div>
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--fg-tertiary)] mb-2">Highlights</p>
-                    <div className="flex flex-wrap gap-2">
-                      {activeEvent.highlights.map((h: string) => (
-                        <span key={h} className="px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] text-[var(--fg-secondary)] font-mono text-[10px] uppercase tracking-wider border border-[var(--border)]">{h}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-
-            <div className="lg:col-span-2 space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-mono text-xs uppercase tracking-widest text-[var(--fg-tertiary)] flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5" /> Competitions
-                </h3>
-                <span className="font-mono text-[10px] uppercase text-[var(--fg-tertiary)]">{activeEvent.competitions?.length || 0} events</span>
-              </div>
-
-              <AnimatePresence mode="wait">
-                <motion.div key={activeEventId} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  {activeEvent.competitions?.length > 0 ? (
-                    activeEvent.competitions.map((comp: any, idx: number) => (
-                      <CompetitionCard key={comp._id} data={comp} index={idx} isPast={isPast} />
-                    ))
-                  ) : (
-                    <div className="border border-dashed border-[var(--border)] p-12 text-center">
-                      <p className="text-[var(--fg-secondary)] text-sm mb-1">
-                        {isPast ? "No competitions were listed for this event." : "Competitions will be announced soon."}
-                      </p>
-                      {!isPast && (
-                        <p className="text-[var(--fg-tertiary)] text-xs">Stay tuned for updates!</p>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              </AnimatePresence>
-            </div>
+      {loading ? (
+        <div className="flex justify-center py-32"><Loader2 className="w-6 h-6 animate-spin text-[var(--fg-tertiary)]" /></div>
+      ) : shown.length === 0 ? (
+        <section className="px-6 pb-32">
+          <div className="max-w-[1200px] mx-auto realm-panel p-16 text-center">
+            <p className="realm-eyebrow">No {tab === "upcoming" ? "upcoming" : "completed"} missions</p>
+            <p className="mt-3 text-sm text-[var(--fg-secondary)]">
+              {tab === "upcoming" ? "New missions are announced at the start of each semester." : "Nothing in the archive yet."}
+            </p>
           </div>
         </section>
+      ) : (
+        shown.map((event, i) => <EventSection key={event._id} event={event} index={i} past={tab === "past"} />)
       )}
-
-      <Footer />
-    </main>
+    </RealmPage>
   )
 }
 
-function CompetitionCard({ data, index, isPast }: { data: any; index: number; isPast: boolean }) {
-  const [isOpen, setIsOpen] = useState(false)
+function EventSection({ event, index, past }: { event: any; index: number; past: boolean }) {
+  const comps: any[] = event.competitions ?? []
+  return (
+    <section className="px-6 py-16 border-t border-[var(--border)]">
+      <div className="max-w-[1200px] mx-auto grid lg:grid-cols-[0.9fr_1.1fr] gap-12 lg:gap-20">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6, ease }}
+        >
+          <Eyebrow index={String(index + 1).padStart(2, "0")}>{past ? "Completed" : "Open for crews"}</Eyebrow>
+          <h2 className="realm-title mt-5 text-[clamp(2.75rem,6vw,5rem)]">{event.name}</h2>
+          {event.tagline && <p className="mt-4 text-lg text-white/90">{event.tagline}</p>}
+          <p className="mt-4 text-sm leading-relaxed text-[var(--fg-secondary)]">{event.description}</p>
 
+          <dl className="mt-8 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-px bg-[var(--border)] border border-[var(--border)]">
+            {[
+              { icon: Calendar, k: "Date", v: event.date },
+              { icon: MapPin, k: "Location", v: event.location },
+              { icon: Users, k: "Crew", v: event.participantsLabel || "Open for all" },
+            ].map(({ icon: Icon, k, v }) => (
+              <div key={k} className="bg-[var(--bg)] p-4 flex items-center gap-4">
+                <Icon className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <div className="min-w-0">
+                  <dt className="realm-eyebrow !text-[10px]">{k}</dt>
+                  <dd className="text-sm text-white mt-1 truncate">{v || "TBA"}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+
+          {event.highlights?.length > 0 && (
+            <ul className="mt-6 flex flex-wrap gap-2">
+              {event.highlights.map((h: string) => (
+                <li key={h} className="realm-eyebrow !text-[10px] border border-[var(--border)] px-3 py-1.5">{h}</li>
+              ))}
+            </ul>
+          )}
+        </motion.div>
+
+        <div>
+          <p className="realm-eyebrow mb-4 flex justify-between">
+            <span>Competitions</span><span>{comps.length}</span>
+          </p>
+          {comps.length === 0 ? (
+            <div className="realm-panel p-10 text-sm text-[var(--fg-secondary)]">
+              {past ? "No competitions were listed for this mission." : "Competitions will be announced soon."}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {comps.map((c, i) => <CompetitionRow key={c._id} data={c} index={i} past={past} />)}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CompetitionRow({ data, index, past }: { data: any; index: number; past: boolean }) {
+  const [open, setOpen] = useState(false)
+  const panelId = `comp-${data._id}`
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, ease: [0.32, 0.72, 0, 1] }}
-      className={`border bg-[var(--bg)] overflow-hidden transition-colors mb-3 ${
-        isOpen ? "border-[var(--border-hover)]" : "border-[var(--border)]"
-      }`}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: index * 0.06, ease }}
+      className={`realm-panel transition-colors ${open ? "!border-[var(--border-hover)]" : ""}`}
     >
-      <button className="w-full p-5 flex items-center justify-between text-left hover:bg-[var(--bg-secondary)] transition-colors" onClick={() => setIsOpen(!isOpen)}>
+      <button
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="w-full p-5 flex items-center justify-between gap-4 text-left"
+      >
         <div>
-          <h4 className="text-base text-[var(--fg)]">{data.title}</h4>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--fg-tertiary)]">{data.type}</span>
-            <span className="font-mono text-[10px] text-[var(--fg-tertiary)]">{data.minTeamSize}-{data.maxTeamSize} members</span>
-          </div>
+          <h3 className="text-lg text-white font-medium">{data.title}</h3>
+          <p className="realm-eyebrow !text-[10px] mt-2">
+            {data.type} · Crew of {data.minTeamSize === data.maxTeamSize ? data.minTeamSize : `${data.minTeamSize}–${data.maxTeamSize}`}
+          </p>
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4 text-[var(--fg-tertiary)]" /> : <ChevronDown className="w-4 h-4 text-[var(--fg-tertiary)]" />}
+        <ChevronDown className={`w-4 h-4 shrink-0 text-[var(--fg-secondary)] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-[var(--border)]">
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            id={panelId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-[var(--border)]"
+          >
             <div className="p-5 grid md:grid-cols-2 gap-6">
               <div>
-                <p className="text-sm text-[var(--fg-secondary)] leading-relaxed mb-4">{data.description}</p>
-                {isPast ? (
-                  <div className="w-full py-3 rounded-full border border-[var(--border)] text-[var(--fg-tertiary)] text-sm text-center">
-                    Event Concluded
-                  </div>
+                <p className="text-sm leading-relaxed text-[var(--fg-secondary)] mb-6">{data.description}</p>
+                {past ? (
+                  <p className="realm-eyebrow">Mission concluded</p>
                 ) : data.registrationOpen ? (
-                  <Link href={`/participate/${data._id}`}>
-                    <button className="w-full py-3 rounded-full border border-[var(--fg)] text-[var(--fg)] text-sm hover:bg-[var(--fg)] hover:text-[var(--bg)] transition-colors">
-                      Participate Now
-                    </button>
+                  <Link href={`/participate/${data._id}`} className="realm-btn w-full">
+                    Register crew <ArrowRight className="w-4 h-4" />
                   </Link>
                 ) : (
-                  <div className="w-full py-3 rounded-full border border-[var(--border)] text-[var(--fg-tertiary)] text-sm text-center">
-                    Registration Not Open Yet
-                  </div>
+                  <p className="realm-eyebrow">Registration opens soon</p>
                 )}
               </div>
               {data.rules?.length > 0 && (
-                <div className="bg-[var(--bg-secondary)] p-4 border border-[var(--border)]">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--fg-tertiary)] mb-3">Rules</p>
+                <div className="border border-[var(--border)] p-4">
+                  <p className="realm-eyebrow !text-[10px] mb-3">Rules of engagement</p>
                   <ul className="space-y-2">
-                    {data.rules.map((rule: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-[var(--fg-secondary)]">
-                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--accent)] shrink-0" /> {rule}
+                    {data.rules.map((r: string, i: number) => (
+                      <li key={i} className="flex gap-3 text-sm text-[var(--fg-secondary)]">
+                        <span className="mt-2 w-1 h-1 bg-[var(--accent)] shrink-0" /> {r}
                       </li>
                     ))}
                   </ul>

@@ -74,6 +74,9 @@ export default function Navbar() {
 
             {user ? (
               <div className="flex items-center gap-3">
+                <Link href="/teams" className="text-sm text-[var(--fg-secondary)] hover:text-[var(--fg)] transition-colors">
+                  My Teams
+                </Link>
                 <Link href="/profile" className="text-sm text-[var(--fg-secondary)] hover:text-[var(--fg)] transition-colors">
                   {user.name || "Profile"}
                 </Link>
@@ -125,12 +128,16 @@ export default function Navbar() {
               ))}
               <div className="h-px bg-[var(--border)] my-3" />
               {user ? (
-                <button
-                  onClick={() => { signOut(); setIsOpen(false) }}
-                  className="block py-2 text-[var(--fg-secondary)] text-sm"
-                >
-                  Sign out
-                </button>
+                <>
+                  <Link href="/teams" onClick={() => setIsOpen(false)} className="block py-2.5 text-[var(--fg-secondary)] hover:text-[var(--fg)] text-sm transition-colors">My Teams</Link>
+                  <Link href="/profile" onClick={() => setIsOpen(false)} className="block py-2.5 text-[var(--fg-secondary)] hover:text-[var(--fg)] text-sm transition-colors">Profile</Link>
+                  <button
+                    onClick={() => { signOut(); setIsOpen(false) }}
+                    className="block py-2 text-[var(--fg-secondary)] text-sm"
+                  >
+                    Sign out
+                  </button>
+                </>
               ) : (
                 <Link
                   href="/auth/signin"

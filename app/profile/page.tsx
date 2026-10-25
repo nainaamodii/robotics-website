@@ -11,7 +11,7 @@ import {
   Users, Mail, Hash, ChevronRight, ChevronDown, ChevronUp,
   Activity, Loader2, Cpu, Trophy, Shield, LogOut, UserMinus,
   Crown, Copy, Check, Clock, CheckCircle, XCircle, FileText,
-  AlertTriangle, ArrowRightLeft, Trash2, Phone, Edit3,
+  AlertTriangle, ArrowRightLeft, Trash2, Phone, Edit3, Eye,
 } from 'lucide-react'
 
 type ApprovalStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
@@ -282,7 +282,7 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <label className="text-[10px] uppercase tracking-wider text-[var(--fg-tertiary)] mb-1 block">Phone</label>
-                    <input value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} className="w-full rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--fg)] focus:border-[var(--fg)] focus:outline-none" />
+                    <input value={profileForm.phone} inputMode="numeric" maxLength={10} placeholder="10-digit mobile" onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} className="w-full rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--fg)] focus:border-[var(--fg)] focus:outline-none" />
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button onClick={handleProfileSave} disabled={profileSaving} className="flex-1 py-2 rounded-lg bg-[var(--fg)] text-[var(--bg)] text-sm font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2">

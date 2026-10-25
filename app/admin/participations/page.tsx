@@ -34,7 +34,6 @@ export default function AdminParticipationsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filter, setFilter] = useState<FilterTab>("all")
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null)
-  const [teamDetails, setTeamDetails] = useState<Record<string, any>>({})
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null)
   const [rejectModalTeamId, setRejectModalTeamId] = useState<string | null>(null)
@@ -67,6 +66,8 @@ export default function AdminParticipationsPage() {
         team.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         team.leaderEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         team.competitionName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        team.eventName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        team.members?.some((m: any) => m.email?.toLowerCase().includes(searchTerm.toLowerCase()) || m.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
         team.teamCode?.toLowerCase().includes(searchTerm.toLowerCase())
       if (!matchesSearch) return false
       if (filter === "all") return true
@@ -80,23 +81,11 @@ export default function AdminParticipationsPage() {
     return counts
   }, [teams])
 
-  const fetchTeamDetails = async (teamId: string) => {
-    if (teamDetails[teamId]) return
-    try {
-      const res = await fetch(`/api/teams/${teamId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setTeamDetails(prev => ({ ...prev, [teamId]: data }))
-      }
-    } catch {}
-  }
-
   const toggleExpand = (teamId: string) => {
     if (expandedTeamId === teamId) {
       setExpandedTeamId(null)
     } else {
       setExpandedTeamId(teamId)
-      fetchTeamDetails(teamId)
     }
   }
 
@@ -155,19 +144,27 @@ export default function AdminParticipationsPage() {
   }
 
   const exportCSV = () => {
-    const headers = ["Team Name", "Team Code", "Competition", "Leader", "Email", "Phone", "Members", "Status", "Submitted", "Created"]
-    const rows = filteredTeams.map(t => [
-      t.name,
-      t.teamCode,
-      t.competitionName || "",
-      t.leaderName || "",
-      t.leaderEmail || "",
-      t.leaderPhone || "",
-      t.memberCount,
-      resolveStatus(t),
-      t.submittedAt ? new Date(t.submittedAt).toLocaleDateString() : "",
-      new Date(t.createdAt).toLocaleDateString(),
-    ])
+    // One row per team member so the sheet is directly usable for attendance/contact.
+    const headers = ["Team Name", "Team Code", "Event", "Competition", "Status", "Role", "Member", "Email", "Email Verified", "Phone", "Roll No", "Department", "College", "Submitted", "Created"]
+    const rows = filteredTeams.flatMap(t =>
+      (t.members?.length ? t.members : [{}]).map((m: any) => [
+        t.name,
+        t.teamCode,
+        t.eventName || "",
+        t.competitionName || "",
+        resolveStatus(t),
+        String(m._id) === String(t.leaderId) ? "Leader" : "Member",
+        m.name || "",
+        m.email || "",
+        m.emailVerified ? "yes" : "no",
+        m.phone || "",
+        m.rollNo || "",
+        m.department || "",
+        m.college || "",
+        t.submittedAt ? new Date(t.submittedAt).toLocaleDateString() : "",
+        new Date(t.createdAt).toLocaleDateString(),
+      ]),
+    )
     const esc = (val: any) => {
       const s = String(val ?? "")
       return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s
@@ -249,7 +246,7 @@ export default function AdminParticipationsPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--fg-tertiary)] w-4 h-4" />
             <input
               type="text"
-              placeholder="Search by team name, code, leader, or competition..."
+              placeholder="Search by team, code, member name/email, event or competition..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--fg)] placeholder:text-[var(--fg-tertiary)] focus:border-[var(--fg)] focus:outline-none transition-colors text-sm"
@@ -273,7 +270,6 @@ export default function AdminParticipationsPage() {
               const cfg = STATUS_CONFIG[status]
               const StatusIcon = cfg.icon
               const isExpanded = expandedTeamId === team._id
-              const details = teamDetails[team._id]
               const isBusy = actionLoading === team._id
 
               return (
@@ -295,7 +291,7 @@ export default function AdminParticipationsPage() {
                       {/* Team info */}
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-[var(--fg)] truncate">{team.name}</p>
-                        <p className="text-xs text-[var(--fg-tertiary)] font-mono mt-0.5">{team.teamCode}</p>
+                        <p className="text-xs text-[var(--fg-tertiary)] font-mono mt-0.5">{team.teamCode}{team.eventName ? ` · ${team.eventName}` : ""}</p>
                       </div>
                       {/* Competition */}
                       <div className="flex items-center gap-2 min-w-0">
@@ -378,28 +374,35 @@ export default function AdminParticipationsPage() {
                             <p className="text-[10px] text-[var(--fg-tertiary)] uppercase tracking-wider mb-3 flex items-center gap-2">
                               <Users size={12} /> Team Members
                             </p>
-                            {details ? (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {details.members?.map((m: any) => (
-                                  <div key={m._id} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
-                                    <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border)] flex items-center justify-center text-xs font-semibold text-[var(--fg-secondary)]">
-                                      {(m.name || "?").charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-[var(--fg)] truncate">{m.name || "Unknown"}</p>
-                                      <p className="text-xs text-[var(--fg-tertiary)] truncate flex items-center gap-1"><Mail size={10} /> {m.email}</p>
-                                    </div>
-                                    {m._id === details.leaderId?.toString() && (
-                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium shrink-0">Leader</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {(team.members ?? []).map((m: any) => (
+                                <div key={m._id} className="flex items-start gap-3 p-3 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+                                  <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border)] flex items-center justify-center text-xs font-semibold text-[var(--fg-secondary)] shrink-0">
+                                    {(m.name || "?").charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[var(--fg)] truncate">{m.name || "Unknown"}</p>
+                                    <p className="text-xs text-[var(--fg-tertiary)] truncate flex items-center gap-1"><Mail size={10} /> {m.email}</p>
+                                    {(m.phone || m.rollNo) && (
+                                      <p className="text-xs text-[var(--fg-tertiary)] truncate mt-0.5">
+                                        {[m.rollNo, m.phone].filter(Boolean).join(" · ")}
+                                      </p>
+                                    )}
+                                    {(m.department || m.college) && (
+                                      <p className="text-xs text-[var(--fg-tertiary)] truncate">{[m.department, m.college].filter(Boolean).join(" · ")}</p>
                                     )}
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 text-sm text-[var(--fg-tertiary)]">
-                                <Loader2 size={14} className="animate-spin" /> Loading members...
-                              </div>
-                            )}
+                                  <div className="flex flex-col items-end gap-1 shrink-0">
+                                    {String(m._id) === String(team.leaderId) && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">Leader</span>
+                                    )}
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${m.emailVerified ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"}`}>
+                                      {m.emailVerified ? "Email verified" : "Unverified"}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
 
                           {/* Actions */}

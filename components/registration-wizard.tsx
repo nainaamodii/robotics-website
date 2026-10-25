@@ -1,73 +1,57 @@
 "use client"
 
 import { useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { ArrowRight, ArrowLeft, Users, Plus, Loader2, Check, AlertCircle, Copy } from "lucide-react"
+import { AlertCircle, ArrowLeft, ArrowRight, Check, Copy, Loader2, Plus, Users } from "lucide-react"
 import WizardStepIndicator from "./wizard-step-indicator"
 
 interface Props {
   competitionId: string
+  competitionTitle?: string
+  teamSize?: { min: number; max: number }
 }
 
-export default function RegistrationWizard({ competitionId }: Props) {
+type Result = { teamId: string; teamCode?: string; teamName?: string; pending?: boolean }
+
+const STEPS = ["Crew", "Designation", "Launch"]
+
+export default function RegistrationWizard({ competitionId, competitionTitle, teamSize }: Props) {
   const router = useRouter()
   const [mode, setMode] = useState<"join" | "create" | null>(null)
   const [step, setStep] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
-
   const [teamName, setTeamName] = useState("")
   const [teamCode, setTeamCode] = useState("")
   const [validatedTeam, setValidatedTeam] = useState<string | null>(null)
-  const [isValidating, setIsValidating] = useState(false)
-  const [result, setResult] = useState<{ teamId: string; teamCode?: string; teamName?: string; pending?: boolean } | null>(null)
+  const [validating, setValidating] = useState(false)
+  const [result, setResult] = useState<Result | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const steps = mode === "create"
-    ? ["Mode", "Identity", "Review"]
-    : mode === "join"
-    ? ["Mode", "Identity", "Review"]
-    : ["Mode"]
-
   async function validateCode(code: string) {
-    // Nanoid codes are 6 chars — start validating at 6 so we don't chatter
-    // the API on every keystroke.
     if (code.length < 4) { setValidatedTeam(null); setError(""); return }
-    setIsValidating(true)
+    setValidating(true)
     try {
-      const res = await fetch(
-        `/api/teams/validate-code?code=${encodeURIComponent(code)}`,
-        { credentials: "include" },
-      )
+      const res = await fetch(`/api/teams/validate-code?code=${encodeURIComponent(code)}`, { credentials: "include" })
       const data = await res.json()
-      if (data.valid) {
-        setValidatedTeam(data.teamName)
-        setError("")
-      } else {
+      if (data.valid) { setValidatedTeam(data.teamName); setError("") }
+      else {
         setValidatedTeam(null)
-        // Show a targeted message per reason so users know how to recover.
-        if (data.reason === "finalized") {
-          setError(`Team "${data.teamName ?? "?"}" is already finalized and can't accept new members.`)
-        } else if (data.reason === "not_found") {
-          setError("No team matches that code.")
-        } else if (data.reason === "malformed") {
-          // Silent — user is still typing.
-          setError("")
-        } else {
-          setError(data.error ?? "Invalid team code")
-        }
+        if (data.reason === "finalized") setError(`"${data.teamName ?? "That team"}" is locked and can't accept new members.`)
+        else if (data.reason === "not_found") setError("No team matches that code.")
+        else if (data.reason !== "malformed") setError(data.error ?? "Invalid team code")
       }
     } catch {
       setValidatedTeam(null)
-      setError("Couldn't verify code — try again.")
+      setError("Couldn't verify the code — try again.")
     } finally {
-      setIsValidating(false)
+      setValidating(false)
     }
   }
 
-  async function handleSubmit() {
-    setIsLoading(true)
+  async function submit() {
+    setBusy(true)
     setError("")
     try {
       const res = await fetch("/api/participate", {
@@ -82,275 +66,160 @@ export default function RegistrationWizard({ competitionId }: Props) {
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Operation failed")
-
-      // JOIN now returns { pending: true, teamId, teamName, requestId } — the
-      // wizard needs to show a "request sent" state instead of dumping the user
-      // onto the team page (they're not on it yet — leader has to approve).
+      if (!res.ok) throw new Error(data.error || "Registration failed")
       if (mode === "join" && data.pending) {
+        setResult({ teamId: data.teamId, teamName: data.teamName, pending: true })
+      } else {
         setResult({
-          teamId: data.teamId,
-          teamName: data.teamName,
-          pending: true,
-        } as any)
-        setStep(steps.length)
-        return
+          teamId: data._id || data.team?._id,
+          teamCode: data.teamCode || data.team?.teamCode,
+          teamName: data.name || data.team?.name || teamName,
+        })
       }
-
-      const teamId = data._id || data.team?._id || data.value?._id
-      setResult({
-        teamId,
-        teamCode: data.teamCode || data.team?.teamCode,
-        teamName: data.teamName || data.team?.name || teamName,
-      })
-      setStep(steps.length)
-    } catch (err: any) {
-      setError(err.message)
+      setStep(STEPS.length)
+    } catch (e: any) {
+      setError(e.message)
     } finally {
-      setIsLoading(false)
+      setBusy(false)
     }
   }
 
   function copyCode() {
-    if (result?.teamCode) {
-      navigator.clipboard.writeText(result.teamCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+    if (!result?.teamCode) return
+    navigator.clipboard?.writeText(result.teamCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   if (result) {
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-10 text-center max-w-md mx-auto"
-      >
-        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
-          <Check className="w-8 h-8 text-emerald-500" />
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="realm-panel p-10 text-center">
+        <div className="w-14 h-14 border border-white mx-auto mb-6 flex items-center justify-center">
+          <Check className="w-6 h-6 text-white" />
         </div>
-        <h2 className="text-2xl font-display font-bold text-[var(--fg)] mb-2">
-          {mode === "create"
-            ? "Team Created!"
-            : result.pending
-              ? "Request Sent!"
-              : "Team Joined!"}
-        </h2>
-        <p className="text-[var(--fg-secondary)] text-sm mb-6">
+        <p className="realm-eyebrow mb-3">{result.pending ? "Request transmitted" : mode === "create" ? "Crew registered" : "Crew joined"}</p>
+        <h2 className="realm-title text-4xl">{result.teamName}</h2>
+        <p className="mt-4 text-sm text-[var(--fg-secondary)]">
           {result.pending
-            ? `Waiting for the leader of "${result.teamName}" to approve your request.`
-            : result.teamName}
+            ? "The team leader will review and approve your request."
+            : "Share the crew code below. Submit the roster for admin approval from your team page."}
         </p>
-
-        {result.teamCode && mode === "create" && (
-          <div className="mb-8">
-            <p className="text-xs text-[var(--fg-tertiary)] mb-2">Share this code with teammates</p>
-            <button
-              onClick={copyCode}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] hover:border-[var(--border-hover)] transition-colors"
-            >
-              <span className="text-2xl font-bold tracking-[0.3em] text-[var(--fg)]">
-                {result.teamCode}
-              </span>
-              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-[var(--fg-tertiary)]" />}
-            </button>
-          </div>
+        {result.teamCode && (
+          <button onClick={copyCode} className="mt-8 inline-flex items-center gap-4 border border-[var(--border-hover)] px-6 py-4 hover:border-white transition-colors" aria-label="Copy team code">
+            <span className="font-mono text-3xl tracking-[0.35em] text-white">{result.teamCode}</span>
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[var(--fg-secondary)]" />}
+          </button>
         )}
-
-        <button
-          onClick={() => router.push(`/teams/${result.teamId}`)}
-          className="px-8 py-3 rounded-full bg-[var(--fg)] text-[var(--bg)] font-semibold text-sm hover:opacity-90 transition-opacity"
-        >
-          Go to Team
-        </button>
+        <div className="mt-10">
+          <button onClick={() => router.push(`/teams/${result.teamId}`)} className="realm-btn">
+            Open team <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </motion.div>
     )
   }
 
-  return (
-    <div className="max-w-lg mx-auto">
-      <WizardStepIndicator steps={steps} currentStep={step} />
+  const errorBox = error && (
+    <div role="alert" className="mt-6 flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
+    </div>
+  )
 
+  return (
+    <div>
+      <WizardStepIndicator steps={STEPS} currentStep={step} />
       <AnimatePresence mode="wait">
         {step === 0 && (
-          <motion.div
-            key="choose"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-4"
-          >
-            <h2 className="text-xl font-display font-semibold text-[var(--fg)] text-center mb-6">
-              How would you like to participate?
-            </h2>
-
-            <button
-              onClick={() => { setMode("join"); setStep(1) }}
-              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 text-left hover:border-[var(--border-hover)] transition-all group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
-                  <Users className="w-6 h-6 text-[var(--fg-secondary)]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--fg)] group-hover:text-[var(--fg)] transition-colors">
-                    Join a Team
-                  </h3>
-                  <p className="text-sm text-[var(--fg-secondary)]">Enter an invite code from your teammates</p>
-                </div>
-                <ArrowRight className="w-5 h-5 text-[var(--fg-tertiary)] ml-auto group-hover:translate-x-1 transition-all" />
-              </div>
-            </button>
-
-            <button
-              onClick={() => { setMode("create"); setStep(1) }}
-              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 text-left hover:border-[var(--border-hover)] transition-all group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
-                  <Plus className="w-6 h-6 text-[var(--fg-secondary)]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--fg)] group-hover:text-[var(--fg)] transition-colors">
-                    Create a Team
-                  </h3>
-                  <p className="text-sm text-[var(--fg-secondary)]">Start a new team and invite members</p>
-                </div>
-                <ArrowRight className="w-5 h-5 text-[var(--fg-tertiary)] ml-auto group-hover:translate-x-1 transition-all" />
-              </div>
-            </button>
+          <motion.div key="s0" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} className="grid sm:grid-cols-2 gap-3">
+            {[
+              { m: "create" as const, icon: Plus, title: "Create a team", sub: "You become team leader and get a code to share." },
+              { m: "join" as const, icon: Users, title: "Join a team", sub: "Enter the code from your team leader." },
+            ].map(({ m, icon: Icon, title, sub }) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setStep(1); setError("") }}
+                className="realm-panel p-7 text-left group hover:!border-white transition-colors"
+              >
+                <Icon className="w-5 h-5 text-[var(--accent)] mb-8" />
+                <h3 className="text-xl text-white">{title}</h3>
+                <p className="mt-2 text-sm text-[var(--fg-secondary)]">{sub}</p>
+                <ArrowRight className="mt-8 w-4 h-4 text-[var(--fg-secondary)] group-hover:translate-x-1 group-hover:text-white transition-all" />
+              </button>
+            ))}
           </motion.div>
         )}
 
         {step === 1 && (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-8"
-          >
+          <motion.div key="s1" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} className="realm-panel p-8">
             {mode === "join" ? (
-              <div className="space-y-4">
-                <h2 className="text-lg font-display font-semibold text-[var(--fg)]">Enter Team Code</h2>
-                <p className="text-sm text-[var(--fg-secondary)]">Ask your team leader for the invite code</p>
+              <>
+                <label htmlFor="team-code" className="realm-eyebrow block mb-4">Team code</label>
                 <input
-                  type="text"
-                  placeholder="e.g. RB-X79Z"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 text-xl tracking-[0.3em] text-center text-[var(--fg)] focus:border-[var(--fg)] focus:outline-none transition-colors"
+                  id="team-code"
+                  autoFocus
+                  autoComplete="off"
+                  placeholder="ABC123"
                   value={teamCode}
-                  onChange={e => {
-                    const v = e.target.value.toUpperCase()
-                    setTeamCode(v)
-                    setError("")
-                    validateCode(v)
-                  }}
+                  onChange={(e) => { const v = e.target.value.toUpperCase(); setTeamCode(v); setError(""); validateCode(v) }}
+                  className="w-full bg-transparent border border-[var(--border)] focus:border-white px-4 py-4 text-2xl font-mono tracking-[0.35em] text-center text-white outline-none transition-colors"
                 />
-                {isValidating && (
-                  <div className="flex items-center gap-2 text-xs text-[var(--fg-tertiary)]">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Validating...
-                  </div>
-                )}
-                {validatedTeam && (
-                  <div className="flex items-center gap-2 text-xs text-emerald-500">
-                    <Check className="w-3 h-3" /> Team: {validatedTeam}
-                  </div>
-                )}
-              </div>
+                <div className="mt-3 h-5 text-xs">
+                  {validating && <span className="flex items-center gap-2 text-[var(--fg-tertiary)]"><Loader2 className="w-3 h-3 animate-spin" /> Checking…</span>}
+                  {validatedTeam && <span className="flex items-center gap-2 text-emerald-400"><Check className="w-3 h-3" /> {validatedTeam}</span>}
+                </div>
+              </>
             ) : (
-              <div className="space-y-4">
-                <h2 className="text-lg font-display font-semibold text-[var(--fg)]">Fleet Designation</h2>
-                <p className="text-sm text-[var(--fg-secondary)]">Choose a memorable name for your team</p>
+              <>
+                <label htmlFor="team-name" className="realm-eyebrow block mb-4">Team name</label>
                 <input
-                  type="text"
+                  id="team-name"
+                  autoFocus
+                  maxLength={60}
                   placeholder="e.g. Nexus Vanguard"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 text-[var(--fg)] focus:border-[var(--fg)] focus:outline-none transition-colors"
                   value={teamName}
-                  onChange={e => { setTeamName(e.target.value); setError("") }}
+                  onChange={(e) => { setTeamName(e.target.value); setError("") }}
+                  className="w-full bg-transparent border border-[var(--border)] focus:border-white px-4 py-4 text-xl text-white placeholder:text-[var(--fg-tertiary)] outline-none transition-colors"
                 />
-              </div>
+                {teamSize && (
+                  <p className="mt-3 text-xs text-[var(--fg-tertiary)]">
+                    This competition takes crews of {teamSize.min === teamSize.max ? teamSize.min : `${teamSize.min}–${teamSize.max}`}.
+                  </p>
+                )}
+              </>
             )}
-
-            {error && (
-              <div className="mt-4 flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => { setStep(0); setMode(null); setError("") }}
-                className="px-5 py-2.5 rounded-full border border-[var(--border)] text-sm text-[var(--fg-secondary)] hover:border-[var(--border-hover)] transition-colors flex items-center gap-2"
-              >
-                <ArrowLeft className="w-4 h-4" /> Mode Select
+            {errorBox}
+            <div className="mt-8 flex gap-3">
+              <button onClick={() => { setStep(0); setMode(null); setError("") }} className="realm-btn realm-btn-ghost">
+                <ArrowLeft className="w-4 h-4" /> Back
               </button>
-              <button
-                onClick={() => setStep(2)}
-                disabled={mode === "join" ? !validatedTeam : !teamName.trim()}
-                className="flex-1 py-2.5 rounded-full bg-[var(--fg)] text-[var(--bg)] font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-wider"
-              >
-                Configure Roster <ArrowRight className="w-4 h-4" />
+              <button onClick={() => setStep(2)} disabled={mode === "join" ? !validatedTeam : !teamName.trim()} className="realm-btn flex-1">
+                Continue <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </motion.div>
         )}
 
         {step === 2 && (
-          <motion.div
-            key="review"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-8"
-          >
-            <h2 className="text-lg font-display font-semibold text-[var(--fg)] mb-6">Review & Confirm</h2>
-
-            <div className="space-y-4 mb-8">
-              <div className="flex justify-between items-center py-3 border-b border-[var(--border)]">
-                <span className="text-sm text-[var(--fg-tertiary)] uppercase tracking-wider">Action</span>
-                <span className="text-sm font-medium text-[var(--fg)] capitalize">{mode} Team</span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-[var(--border)]">
-                <span className="text-sm text-[var(--fg-tertiary)] uppercase tracking-wider">{mode === "join" ? "Team Code" : "Team Name"}</span>
-                <span className="text-sm font-medium text-[var(--fg)]">
-                  {mode === "join" ? teamCode : teamName}
-                </span>
-              </div>
-              {mode === "join" && validatedTeam && (
-                <div className="flex justify-between items-center py-3 border-b border-[var(--border)]">
-                  <span className="text-sm text-[var(--fg-tertiary)] uppercase tracking-wider">Team Name</span>
-                  <span className="text-sm font-medium text-[var(--fg)]">{validatedTeam}</span>
+          <motion.div key="s2" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} className="realm-panel p-8">
+            <p className="realm-eyebrow mb-6">Pre-launch checklist</p>
+            <dl className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
+              {[
+                ["Mission", competitionTitle ?? "—"],
+                ["Action", mode === "join" ? "Join team" : "Create team"],
+                [mode === "join" ? "Team" : "Team name", mode === "join" ? `${validatedTeam} (${teamCode})` : teamName],
+                ["Identity", "Email verified"],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-6 py-4 text-sm">
+                  <dt className="realm-eyebrow !text-[10px]">{k}</dt>
+                  <dd className="text-white text-right">{v}</dd>
                 </div>
-              )}
-              <div className="flex justify-between items-center py-3">
-                <span className="text-sm text-[var(--fg-tertiary)] uppercase tracking-wider">Competition</span>
-                <span className="text-sm text-[var(--fg-secondary)] font-mono">{competitionId}</span>
-              </div>
-            </div>
-
-            {error && (
-              <div className="mb-4 flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(1)}
-                className="px-5 py-2.5 rounded-full border border-[var(--border)] text-sm text-[var(--fg-secondary)] hover:border-[var(--border-hover)] transition-colors flex items-center gap-2"
-              >
-                <ArrowLeft className="w-4 h-4" /> Back
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isLoading}
-                className="flex-1 py-2.5 rounded-full bg-[var(--fg)] text-[var(--bg)] font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>Confirm <Check className="w-4 h-4" /></>
-                )}
+              ))}
+            </dl>
+            {errorBox}
+            <div className="mt-8 flex gap-3">
+              <button onClick={() => setStep(1)} className="realm-btn realm-btn-ghost"><ArrowLeft className="w-4 h-4" /> Back</button>
+              <button onClick={submit} disabled={busy} className="realm-btn flex-1">
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Confirm registration <Check className="w-4 h-4" /></>}
               </button>
             </div>
           </motion.div>

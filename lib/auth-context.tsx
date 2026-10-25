@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 export interface AuthUser {
   _id?: string
   email: string
+  emailVerified?: boolean
   name: string
   rollNo?: string
   department?: string

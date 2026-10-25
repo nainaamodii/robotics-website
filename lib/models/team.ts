@@ -296,6 +296,7 @@ function memberProjection(adminView: boolean) {
     name: '$$member.name',
     email: '$$member.email',
     codename: '$$member.codename',
+    emailVerified: '$$member.emailVerified',
   }
   const adminOnly: Record<string, any> = adminView
     ? {
@@ -514,6 +515,7 @@ export async function listTeamsByStatus(
     .aggregate([
       { $match: match },
       { $sort: sort },
+      USERS_LOOKUP,
       ...CONTEXT_STAGES,
       {
         $lookup: {
@@ -536,7 +538,10 @@ export async function listTeamsByStatus(
           rejectedReason: 1,
           createdAt: 1,
           competitionId: 1,
+          leaderId: 1,
           memberCount: { $size: { $ifNull: ['$members', []] } },
+          // Full roster for the admin registrations view (admin-only endpoints call this).
+          members: memberProjection(true),
           leaderName: '$leader.name',
           leaderEmail: '$leader.email',
           leaderPhone: '$leader.phone',

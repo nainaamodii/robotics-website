@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth-guard'
+import { requireUser, requireVerifiedUser } from '@/lib/auth-guard'
 import {
   createTeam,
   getTeamByCode,
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = await requireUser()
+    const userId = await requireVerifiedUser()
     const input = ParticipateSchema.parse(await request.json())
 
     const user = await getUserById(userId)
