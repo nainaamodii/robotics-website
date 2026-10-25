@@ -167,7 +167,7 @@ function CompleteProfileInner() {
                     : "border-[var(--border-hover)] bg-transparent"
                 }`}
               >
-                {isMnnit && <Check className="w-3.5 h-3.5 text-white" />}
+                {isMnnit && <Check className="w-3.5 h-3.5 text-[var(--fg)]" />}
               </button>
               <div>
                 <p className="text-sm font-medium text-[var(--fg)]">I am an MNNIT student</p>

@@ -16,6 +16,9 @@ type Event = {
     date: string        // display string, legacy
     startDate?: string  // ISO "YYYY-MM-DD"
     endDate?: string
+    registrationOpensAt?: string | null  // ISO instant
+    registrationClosesAt?: string | null
+    registration?: { state: string }
     location: string
     participantsLabel?: string
     highlights?: string[]
@@ -43,6 +46,8 @@ const EVENT_FIELD_LABELS: Record<string, string> = {
     name: "Event name",
     startDate: "Start date",
     endDate: "End date",
+    registrationOpensAt: "Registration opens",
+    registrationClosesAt: "Registration closes",
     theme: "Theme",
     tagline: "Tagline",
     description: "Description",
@@ -69,6 +74,32 @@ function parseApiError(data: any): { summary: string; fields: FieldError[] } {
         for (const msg of formErrors) fields.push({ field: "Form", message: String(msg) })
     }
     return { summary, fields }
+}
+
+// ─── <input type="datetime-local"> <-> ISO instant (admin's local timezone) ───
+const pad = (n: number) => String(n).padStart(2, "0")
+function toLocalInput(iso?: string | null): string {
+    if (!iso) return ""
+    const d = new Date(iso)
+    if (isNaN(+d)) return ""
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function fromLocalInput(v: string): string | null {
+    if (!v) return null
+    const d = new Date(v)
+    return isNaN(+d) ? null : d.toISOString()
+}
+const fmtWhen = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"
+
+function registrationSummary(ev: Partial<Event>): { label: string; tone: string } {
+    const o = ev.registrationOpensAt ? new Date(ev.registrationOpensAt) : null
+    const c = ev.registrationClosesAt ? new Date(ev.registrationClosesAt) : null
+    const now = new Date()
+    if (!o && !c) return { label: "No window set — each competition's own switch decides", tone: "text-[var(--fg-tertiary)]" }
+    if (o && now < o) return { label: `Opens ${fmtWhen(ev.registrationOpensAt)}`, tone: "text-amber-500" }
+    if (c && now > c) return { label: `Closed ${fmtWhen(ev.registrationClosesAt)}`, tone: "text-red-500" }
+    return { label: c ? `Open now · closes ${fmtWhen(ev.registrationClosesAt)}` : "Open now · no closing time", tone: "text-emerald-500" }
 }
 
 // ─── Small preview of how the display date will look ───
@@ -124,9 +155,11 @@ export function EventsManager() {
             // Strip database and API-only fields (including computed `status`)
             // so `.strict()` on the update schema accepts the request.
             const {
-                _id, date, year, status, competitions, createdAt, updatedAt, isActive,
+                _id, date, year, status, competitions, createdAt, updatedAt, isActive, registration,
                 ...payload
             } = editingEvent as any
+            payload.registrationOpensAt = payload.registrationOpensAt ?? null
+            payload.registrationClosesAt = payload.registrationClosesAt ?? null
             const res = await fetch(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
@@ -329,6 +362,59 @@ export function EventsManager() {
                                 </p>
                             )}
 
+                            {/* Registration window — decides when students can sign their teams up. */}
+                            <div className="rounded-xl border border-[var(--border)] p-4 space-y-4">
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <p className="text-xs text-[var(--fg-secondary)] uppercase tracking-wider font-semibold">Registration window</p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingEvent({ ...editingEvent, registrationOpensAt: new Date().toISOString(), registrationClosesAt: editingEvent.registrationClosesAt && new Date(editingEvent.registrationClosesAt) <= new Date() ? null : editingEvent.registrationClosesAt })}
+                                            className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border)] hover:border-[var(--fg)] transition-colors"
+                                        >Open now</button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingEvent({ ...editingEvent, registrationClosesAt: new Date().toISOString() })}
+                                            className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border)] hover:border-[var(--fg)] transition-colors"
+                                        >Close now</button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs text-[var(--fg-tertiary)] uppercase tracking-wider font-medium mb-2 block">Registration opens</label>
+                                        <input
+                                            type="datetime-local"
+                                            className={inputClass}
+                                            value={toLocalInput(editingEvent.registrationOpensAt)}
+                                            onChange={e => setEditingEvent({ ...editingEvent, registrationOpensAt: fromLocalInput(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-[var(--fg-tertiary)] uppercase tracking-wider font-medium mb-2 block">Registration closes</label>
+                                        <input
+                                            type="datetime-local"
+                                            className={inputClass}
+                                            value={toLocalInput(editingEvent.registrationClosesAt)}
+                                            onChange={e => setEditingEvent({ ...editingEvent, registrationClosesAt: fromLocalInput(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                                {(() => {
+                                    const sum = registrationSummary(editingEvent)
+                                    const closesAfterEvent = editingEvent.registrationClosesAt && editingEvent.endDate &&
+                                        new Date(editingEvent.registrationClosesAt) > new Date(`${editingEvent.endDate}T23:59:59`)
+                                    return (
+                                        <div className="text-xs space-y-1">
+                                            <p className={sum.tone}>{sum.label}</p>
+                                            {closesAfterEvent && <p className="text-amber-500">Registration closes after the event ends.</p>}
+                                            <p className="text-[var(--fg-tertiary)]">
+                                                Event starts {editingEvent.startDate || "—"}. Students see these dates on the event page and can register only inside the window. Clear both fields to fall back to each competition&apos;s own switch.
+                                            </p>
+                                        </div>
+                                    )
+                                })()}
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <input
                                     placeholder="Location (e.g. MNNIT Allahabad)"
@@ -467,6 +553,7 @@ export function EventsManager() {
                                     <h3 className="font-display text-lg font-semibold text-[var(--fg)]">{event.name}</h3>
                                     <div className="flex gap-4 text-xs text-[var(--fg-tertiary)] mt-1">
                                         <span className="flex items-center gap-1"><Calendar size={12} /> {event.date}</span>
+                                        <span className={registrationSummary(event).tone}>Registration: {registrationSummary(event).label}</span>
                                         <span className="flex items-center gap-1"><MapPin size={12} /> {event.location}</span>
                                     </div>
                                 </div>

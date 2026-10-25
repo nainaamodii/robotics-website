@@ -198,11 +198,37 @@ const ISODateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be a valid date (YYYY-MM-DD)')
   .refine(isRealCalendarDate, 'Must be a real calendar date')
 
+/**
+ * A registration open/close instant. Accepts an ISO datetime (what the admin
+ * form sends); '' or null clears it. Always normalised to a UTC ISO string.
+ */
+const RegistrationInstantSchema = z
+  .union([z.string().max(40), z.null()])
+  .transform((v, ctx) => {
+    if (v === null || v.trim() === '') return null
+    const t = Date.parse(v)
+    if (Number.isNaN(t)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be a valid date and time' })
+      return z.NEVER
+    }
+    return new Date(t).toISOString()
+  })
+
+const registrationWindowOrdered = (d: {
+  registrationOpensAt?: string | null
+  registrationClosesAt?: string | null
+}) =>
+  !d.registrationOpensAt ||
+  !d.registrationClosesAt ||
+  Date.parse(d.registrationClosesAt) > Date.parse(d.registrationOpensAt)
+
 export const CreateEventSchema = z
   .object({
     name: z.string().min(1).max(200).trim(),
     startDate: ISODateSchema,
     endDate: ISODateSchema,
+    registrationOpensAt: RegistrationInstantSchema.optional(),
+    registrationClosesAt: RegistrationInstantSchema.optional(),
     theme: z.string().max(200).default(''),
     tagline: z.string().max(300).default(''),
     description: z.string().max(5000).default(''),
@@ -215,6 +241,10 @@ export const CreateEventSchema = z
   .refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
     message: 'End date must be on or after start date',
     path: ['endDate'],
+  })
+  .refine(registrationWindowOrdered, {
+    message: 'Registration must close after it opens',
+    path: ['registrationClosesAt'],
   })
   // Derive year + display date server-side so the frontend can stop sending
   // them. The DB doc keeps all four (startDate, endDate, year, date) for
@@ -233,6 +263,8 @@ export const UpdateEventSchema = z
     name: z.string().min(1).max(200).trim().optional(),
     startDate: ISODateSchema.optional(),
     endDate: ISODateSchema.optional(),
+    registrationOpensAt: RegistrationInstantSchema.optional(),
+    registrationClosesAt: RegistrationInstantSchema.optional(),
     theme: z.string().max(200).optional(),
     tagline: z.string().max(300).optional(),
     description: z.string().max(5000).optional(),
@@ -251,6 +283,10 @@ export const UpdateEventSchema = z
       path: ['endDate'],
     },
   )
+  .refine(registrationWindowOrdered, {
+    message: 'Registration must close after it opens',
+    path: ['registrationClosesAt'],
+  })
   .transform((d) => {
     if (d.startDate && d.endDate) {
       return {

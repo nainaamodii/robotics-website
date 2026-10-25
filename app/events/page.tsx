@@ -5,6 +5,7 @@ import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowRight, Calendar, ChevronDown, Loader2, MapPin, Users } from "lucide-react"
 import RealmPage, { Eyebrow } from "@/components/realm/realm-page"
+import { HowToRegister, RegistrationTimeline, REGISTRATION_LABEL } from "@/components/realm/registration-timeline"
 
 const ease: [number, number, number, number] = [0.32, 0.72, 0, 1]
 
@@ -52,11 +53,11 @@ export default function EventsPage() {
                   aria-selected={tab === t}
                   onClick={() => setTab(t)}
                   className={`relative pb-4 text-xs uppercase tracking-[0.22em] transition-colors ${
-                    tab === t ? "text-white" : "text-[var(--fg-tertiary)] hover:text-white"
+                    tab === t ? "text-[var(--fg)]" : "text-[var(--fg-tertiary)] hover:text-[var(--fg)]"
                   }`}
                 >
                   {t === "upcoming" ? "Upcoming" : "Completed"} <span className="ml-1 text-[var(--fg-tertiary)]">{count}</span>
-                  {tab === t && <motion.span layoutId="tab-line" className="absolute inset-x-0 -bottom-px h-px bg-white" />}
+                  {tab === t && <motion.span layoutId="tab-line" className="absolute inset-x-0 -bottom-px h-px bg-[var(--fg)]" />}
                 </button>
               )
             })}
@@ -95,7 +96,7 @@ function EventSection({ event, index, past }: { event: any; index: number; past:
         >
           <Eyebrow index={String(index + 1).padStart(2, "0")}>{past ? "Completed" : "Open for crews"}</Eyebrow>
           <h2 className="realm-title mt-5 text-[clamp(2.75rem,6vw,5rem)]">{event.name}</h2>
-          {event.tagline && <p className="mt-4 text-lg text-white/90">{event.tagline}</p>}
+          {event.tagline && <p className="mt-4 text-lg text-[var(--fg)]">{event.tagline}</p>}
           <p className="mt-4 text-sm leading-relaxed text-[var(--fg-secondary)]">{event.description}</p>
 
           <dl className="mt-8 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-px bg-[var(--border)] border border-[var(--border)]">
@@ -108,11 +109,18 @@ function EventSection({ event, index, past }: { event: any; index: number; past:
                 <Icon className="w-4 h-4 text-[var(--accent)] shrink-0" />
                 <div className="min-w-0">
                   <dt className="realm-eyebrow !text-[10px]">{k}</dt>
-                  <dd className="text-sm text-white mt-1 truncate">{v || "TBA"}</dd>
+                  <dd className="text-sm text-[var(--fg)] mt-1 truncate">{v || "TBA"}</dd>
                 </div>
               </div>
             ))}
           </dl>
+
+          {!past && (
+            <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-1 gap-3">
+              <RegistrationTimeline registration={event.registration} startDate={event.startDate} endDate={event.endDate} />
+              <HowToRegister />
+            </div>
+          )}
 
           {event.highlights?.length > 0 && (
             <ul className="mt-6 flex flex-wrap gap-2">
@@ -133,7 +141,7 @@ function EventSection({ event, index, past }: { event: any; index: number; past:
             </div>
           ) : (
             <div className="space-y-3">
-              {comps.map((c, i) => <CompetitionRow key={c._id} data={c} index={i} past={past} />)}
+              {comps.map((c, i) => <CompetitionRow key={c._id} data={c} index={i} past={past} event={event} />)}
             </div>
           )}
         </div>
@@ -142,7 +150,7 @@ function EventSection({ event, index, past }: { event: any; index: number; past:
   )
 }
 
-function CompetitionRow({ data, index, past }: { data: any; index: number; past: boolean }) {
+function CompetitionRow({ data, index, past, event }: { data: any; index: number; past: boolean; event: any }) {
   const [open, setOpen] = useState(false)
   const panelId = `comp-${data._id}`
   return (
@@ -160,7 +168,7 @@ function CompetitionRow({ data, index, past }: { data: any; index: number; past:
         className="w-full p-5 flex items-center justify-between gap-4 text-left"
       >
         <div>
-          <h3 className="text-lg text-white font-medium">{data.title}</h3>
+          <h3 className="text-lg text-[var(--fg)] font-medium">{data.title}</h3>
           <p className="realm-eyebrow !text-[10px] mt-2">
             {data.type} · Crew of {data.minTeamSize === data.maxTeamSize ? data.minTeamSize : `${data.minTeamSize}–${data.maxTeamSize}`}
           </p>
@@ -181,12 +189,19 @@ function CompetitionRow({ data, index, past }: { data: any; index: number; past:
                 <p className="text-sm leading-relaxed text-[var(--fg-secondary)] mb-6">{data.description}</p>
                 {past ? (
                   <p className="realm-eyebrow">Mission concluded</p>
-                ) : data.registrationOpen ? (
+                ) : data.registration?.state === "open" ? (
                   <Link href={`/participate/${data._id}`} className="realm-btn w-full">
                     Register crew <ArrowRight className="w-4 h-4" />
                   </Link>
                 ) : (
-                  <p className="realm-eyebrow">Registration opens soon</p>
+                  <div>
+                    <button disabled className="realm-btn w-full">{REGISTRATION_LABEL[data.registration?.state as keyof typeof REGISTRATION_LABEL] ?? "Registration not open yet"}</button>
+                    {data.registration?.state === "not_yet_open" && data.registration.opensAt && (
+                      <p className="mt-3 text-xs text-[var(--fg-secondary)]">
+                        Opens {new Date(data.registration.opensAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
               {data.rules?.length > 0 && (

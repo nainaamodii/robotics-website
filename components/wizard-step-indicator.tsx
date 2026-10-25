@@ -19,14 +19,14 @@ export default function WizardStepIndicator({ steps, currentStep }: Props) {
             <div className="flex items-center gap-3">
               <span
                 className={`w-7 h-7 border flex items-center justify-center text-[11px] font-mono transition-colors ${
-                  done ? "bg-white text-black border-white" : active ? "border-white text-white" : "border-[var(--border)] text-[var(--fg-tertiary)]"
+                  done ? "bg-[var(--fg)] text-[var(--bg)] border-[var(--fg)]" : active ? "border-[var(--fg)] text-[var(--fg)]" : "border-[var(--border)] text-[var(--fg-tertiary)]"
                 }`}
               >
                 {done ? <Check className="w-3.5 h-3.5" /> : String(idx + 1).padStart(2, "0")}
               </span>
-              <span className={`realm-eyebrow !text-[10px] hidden sm:block ${active ? "!text-white" : ""}`}>{label}</span>
+              <span className={`realm-eyebrow !text-[10px] hidden sm:block ${active ? "!text-[var(--fg)]" : ""}`}>{label}</span>
             </div>
-            {idx < steps.length - 1 && <span className={`flex-1 h-px mx-4 ${done ? "bg-white" : "bg-[var(--border)]"}`} />}
+            {idx < steps.length - 1 && <span className={`flex-1 h-px mx-4 ${done ? "bg-[var(--fg)]" : "bg-[var(--border)]"}`} />}
           </li>
         )
       })}
