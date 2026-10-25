@@ -131,6 +131,10 @@ export const forgotPasswordLimiter = () =>
 export const resetPasswordLimiter = () =>
   limiter({ requests: 5, window: '1 h', prefix: 'rl:reset' })
 
+/** Team-code validation: stops someone enumerating invite codes. 30/min/user. */
+export const teamCodeLimiter = () =>
+  limiter({ requests: 30, window: '1 m', prefix: 'rl:team-code' })
+
 /** Admin login: brute-force target for the shared password. 5/hour/IP. */
 export const adminAuthLimiter = () =>
   limiter({ requests: 5, window: '1 h', prefix: 'rl:admin-auth' })

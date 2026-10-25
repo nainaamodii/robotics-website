@@ -11,6 +11,8 @@ import { z } from 'zod'
 const EnvSchema = z.object({
   // Database
   MONGO_URL: z.string().min(1, 'MONGO_URL is required'),
+  // Optional DB name override (defaults to 'robotics-club'). Used by tests.
+  MONGO_DB_NAME: z.string().min(1).optional(),
 
 
   JWT_SECRET: z

@@ -3,6 +3,7 @@
 
 import { ObjectId } from 'mongodb'
 import { getDB } from '@/lib/db'
+import { addMemberWithLimit, getMaxTeamSizeForCompetition } from '@/lib/models/team'
 import {
   ConflictError,
   ForbiddenError,
@@ -50,6 +51,20 @@ export async function sendInvitation(args: {
     (m: any) => m?.toString?.() === invitedUserId,
   )
   if (alreadyMember) throw new ConflictError('User is already on this team')
+
+  // Don't invite someone who has nowhere to go: a full team, or a person who
+  // is already registered on another team in the same competition.
+  const max = await getMaxTeamSizeForCompetition(team.competitionId)
+  if (max !== null && (team.members ?? []).length >= max) {
+    throw new ConflictError('This team is already full')
+  }
+  const onOtherTeam = await db.collection('teams').findOne(
+    { competitionId: team.competitionId, members: oid(invitedUserId) },
+    { projection: { _id: 1 } },
+  )
+  if (onOtherTeam) {
+    throw new ConflictError('That user is already on a team in this competition')
+  }
 
   const doc: Invitation = {
     teamId: oid(teamId),
@@ -166,20 +181,14 @@ export async function acceptInvitation(
   )
 
   if (!alreadyMember) {
-    try {
-      await db.collection('teams').updateOne(
-        { _id: invite.teamId },
-        { $addToSet: { members: uid } as any },
-      )
-    } catch (e: any) {
-      // Compound unique index on (competitionId, members) — if the invitee is
-      // already on another team in the same competition, this trips E11000.
-      if (e?.code === 11000) {
-        throw new ConflictError(
-          'You are already on another team in this competition',
-        )
-      }
-      throw e
+    // Atomic: enforces the roster cap, no duplicates, and the one-team-per-
+    // competition unique index in one conditional update.
+    const added = await addMemberWithLimit(invite.teamId, uid)
+    if (!added.ok) {
+      if (added.reason === 'full') throw new ConflictError('This team is already full')
+      if (added.reason === 'locked') throw new ConflictError('Team is finalized')
+      if (added.reason === 'not-found') throw new NotFoundError('Team no longer exists')
+      // 'already-member' falls through: the invite is simply marked accepted.
     }
   }
 

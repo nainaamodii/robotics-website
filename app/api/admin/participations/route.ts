@@ -1,63 +1,22 @@
 import { NextResponse } from 'next/server'
-import { getDB } from '@/lib/db'
+import { listTeamsByStatus } from '@/lib/models/team'
 import { requireAdmin } from '@/lib/auth-guard'
 import { handleApiError } from '@/lib/errors'
 
+export const dynamic = 'force-dynamic'
+
+/**
+ * GET /api/admin/participations — every team/registration, newest first, with
+ * leader, competition (incl. min/max size) and event populated. Reads the DB
+ * directly (no cache) so a student's new registration is visible immediately.
+ */
 export async function GET() {
   try {
     await requireAdmin()
-    const db = await getDB()
-
-    // Single-pass aggregation. Keeping this in Mongo instead of doing separate
-    // queries + JS joins is a ~10x latency win once the collections have real data.
-    const participations = await db
-      .collection('teams')
-      .aggregate([
-        // Same $toObjectId guard used in lib/models/team.ts — supports legacy
-        // team docs where competitionId was accidentally stored as a string.
-        { $addFields: { competitionIdObj: { $toObjectId: '$competitionId' } } },
-        {
-          $lookup: {
-            from: 'competitions',
-            localField: 'competitionIdObj',
-            foreignField: '_id',
-            as: 'competition',
-          },
-        },
-        { $unwind: { path: '$competition', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'leaderId',
-            foreignField: '_id',
-            as: 'leader',
-          },
-        },
-        { $unwind: { path: '$leader', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            teamCode: 1,
-            isFinalized: 1,
-            approvalStatus: 1,
-            createdAt: 1,
-            submittedAt: 1,
-            approvedAt: 1,
-            rejectedAt: 1,
-            rejectedReason: 1,
-            memberCount: { $size: '$members' },
-            competitionName: '$competition.title',
-            leaderName: '$leader.name',
-            leaderEmail: '$leader.email',
-            leaderPhone: '$leader.phone',
-          },
-        },
-        { $sort: { createdAt: -1 } },
-      ])
-      .toArray()
-
-    return NextResponse.json(participations)
+    const participations = await listTeamsByStatus(undefined, { sort: 'recent' })
+    const res = NextResponse.json(participations)
+    res.headers.set('Cache-Control', 'no-store')
+    return res
   } catch (error) {
     return handleApiError(error)
   }

@@ -14,6 +14,7 @@
  */
 import { ObjectId } from 'mongodb'
 import { getDB } from '@/lib/db'
+import { addMemberWithLimit, getMaxTeamSizeForCompetition } from '@/lib/models/team'
 import {
   ConflictError,
   ForbiddenError,
@@ -58,6 +59,13 @@ export async function createJoinRequest(args: {
   )
   if (alreadyMember) {
     throw new ConflictError('You are already on this team')
+  }
+
+  // A full team can't take more people — fail early instead of letting the
+  // leader approve a request that can never be honoured.
+  const max = await getMaxTeamSizeForCompetition(team.competitionId)
+  if (max !== null && (team.members ?? []).length >= max) {
+    throw new ConflictError('This team is already full')
   }
 
   const doc: JoinRequest = {
@@ -162,6 +170,58 @@ export async function getPendingRequestsForTeam(teamId: string) {
     .toArray()
 }
 
+/**
+ * The caller's own pending join requests, with team + competition + event
+ * names so the profile page can show "waiting for leader approval".
+ */
+export async function getPendingRequestsByUser(userId: string) {
+  const db = await getDB()
+  return db
+    .collection('join_requests')
+    .aggregate([
+      { $match: { userId: new ObjectId(userId), status: 'pending' } },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'teams',
+          localField: 'teamId',
+          foreignField: '_id',
+          as: 'team',
+        },
+      },
+      { $unwind: { path: '$team', preserveNullAndEmptyArrays: false } },
+      {
+        $lookup: {
+          from: 'competitions',
+          localField: 'team.competitionId',
+          foreignField: '_id',
+          as: 'competition',
+        },
+      },
+      { $unwind: { path: '$competition', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'events',
+          localField: 'competition.eventId',
+          foreignField: '_id',
+          as: 'event',
+        },
+      },
+      { $unwind: { path: '$event', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          status: 1,
+          createdAt: 1,
+          teamId: 1,
+          teamName: '$team.name',
+          competitionName: '$competition.title',
+          eventName: '$event.name',
+        },
+      },
+    ])
+    .toArray()
+}
+
 export async function getJoinRequestById(id: string) {
   const db = await getDB()
   if (!ObjectId.isValid(id)) return null
@@ -198,18 +258,16 @@ export async function acceptJoinRequest(
     (m: any) => m?.toString?.() === req.userId.toString(),
   )
   if (!alreadyMember) {
-    try {
-      await db.collection('teams').updateOne(
-        { _id: req.teamId },
-        { $addToSet: { members: req.userId } as any },
-      )
-    } catch (e: any) {
-      if (e?.code === 11000) {
-        throw new ConflictError(
-          'That user is already on another team in this competition',
-        )
+    // Atomic: enforces the roster cap, no duplicates, and the one-team-per-
+    // competition unique index in a single conditional update.
+    const added = await addMemberWithLimit(req.teamId, req.userId)
+    if (!added.ok) {
+      if (added.reason === 'full') {
+        throw new ConflictError('Team is full — no more members can be added')
       }
-      throw e
+      if (added.reason === 'locked') throw new ConflictError('Team is finalized')
+      if (added.reason === 'not-found') throw new NotFoundError('Team no longer exists')
+      // 'already-member' falls through: the request is simply marked accepted.
     }
   }
 

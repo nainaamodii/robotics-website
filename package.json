@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "start": "next start",
     "db:indexes": "tsx --env-file=.env.local scripts/setup-indexes.ts",
+    "db:migrate": "tsx --env-file=.env.local scripts/migrate-event-publishing.ts",
     "test": "vitest",
     "test:run": "vitest run"
   },

@@ -1,22 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getCompetitionById, updateCompetition, deleteCompetition } from "@/lib/models/competition"
-import { requireAdmin } from "@/lib/auth-guard"
-import { handleApiError, NotFoundError } from "@/lib/errors"
+import {
+  getCompetitionById,
+  updateCompetition,
+  deleteCompetition,
+  countTeamsLargerThan,
+} from "@/lib/models/competition"
+import { isPublished } from "@/lib/models/events"
+import { getCompetitionContext } from "@/lib/registration"
+import { isAdmin, requireAdmin } from "@/lib/auth-guard"
+import { ConflictError, handleApiError, NotFoundError, ValidationError } from "@/lib/errors"
 import { ObjectIdSchema, UpdateCompetitionSchema } from "@/lib/validation"
 
-// NOTE: PUT below now throws NotFoundError on a null update result. Without
-// that check we were returning 200 with a `null` body — misleading to the
-// client and inconsistent with the DELETE handler.
+export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ id: string }> }
-
+/** Competitions of draft events are hidden from everyone except admins. */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params
         ObjectIdSchema.parse(id)
-        const competition = await getCompetitionById(id)
-        if (!competition) throw new NotFoundError('Competition not found')
-        return NextResponse.json(competition)
+        const ctx = await getCompetitionContext(id)
+        if (!ctx || (!isPublished(ctx.event) && !(await isAdmin()))) {
+            throw new NotFoundError('Competition not found')
+        }
+        return NextResponse.json(ctx.competition)
     } catch (error) {
         return handleApiError(error)
     }
@@ -28,6 +34,32 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
     ObjectIdSchema.parse(id)
     const body = UpdateCompetitionSchema.parse(await request.json())
+
+    const existing = await getCompetitionById(id)
+    if (!existing) throw new NotFoundError('Competition not found')
+
+    // The schema can only compare min/max when both are sent; validate the
+    // MERGED values so updating just one of them can't invert the range.
+    const min = body.minTeamSize ?? existing.minTeamSize
+    const max = body.maxTeamSize ?? existing.maxTeamSize
+    if (typeof min === 'number' && typeof max === 'number' && max < min) {
+      throw new ValidationError({
+        formErrors: [],
+        fieldErrors: { maxTeamSize: ['maxTeamSize must be >= minTeamSize'] },
+      })
+    }
+
+    // Don't strand existing teams: refuse to lower the cap below a roster that exists.
+    if (body.maxTeamSize !== undefined && body.maxTeamSize < existing.maxTeamSize) {
+      const tooBig = await countTeamsLargerThan(id, body.maxTeamSize)
+      if (tooBig > 0) {
+        throw new ConflictError(
+          `${tooBig} existing team${tooBig === 1 ? ' has' : 's have'} more than ${body.maxTeamSize} members — ` +
+          'remove members before lowering the maximum.',
+        )
+      }
+    }
+
     const result = await updateCompetition(id, body)
     if (!result) throw new NotFoundError('Competition not found')
     return NextResponse.json(result)

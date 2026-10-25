@@ -174,10 +174,16 @@ function formatEventDate(startISO: string, endISO: string): string {
   return `${monthS} ${dS}, ${yS} - ${monthE} ${dE}, ${yE}`
 }
 
+function isRealCalendarDate(s: string): boolean {
+  const d = new Date(`${s}T00:00:00.000Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+}
+
 /** Accepts an <input type="date"> value: "YYYY-MM-DD". */
 const ISODateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be a valid date (YYYY-MM-DD)')
+  .refine(isRealCalendarDate, 'Must be a real calendar date')
 
 export const CreateEventSchema = z
   .object({
@@ -189,6 +195,8 @@ export const CreateEventSchema = z
     description: z.string().max(5000).default(''),
     location: z.string().max(200).default(''),
     participantsLabel: z.string().max(100).default(''),
+    // New events start as drafts; an admin publishes them explicitly.
+    published: z.boolean().default(false),
     highlights: z.array(z.string().max(200)).max(20).default([]),
   })
   .refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
@@ -217,6 +225,7 @@ export const UpdateEventSchema = z
     description: z.string().max(5000).optional(),
     location: z.string().max(200).optional(),
     participantsLabel: z.string().max(100).optional(),
+    published: z.boolean().optional(),
     highlights: z.array(z.string().max(200)).max(20).optional(),
   })
   .strict()

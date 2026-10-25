@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { env } from '@/lib/env'
 import { AdminAuthSchema } from '@/lib/validation'
@@ -12,9 +13,11 @@ export async function POST(request: NextRequest) {
     await enforceLimit(adminAuthLimiter(), clientIp(request))
     const { password } = AdminAuthSchema.parse(await request.json())
 
-    // Constant-time-ish compare would be ideal here; strings are short enough
-    // that the timing-attack surface is negligible. Fine for MVP.
-    if (password !== env.ADMIN_PASSWORD) {
+    // Compare SHA-256 digests with timingSafeEqual: constant time, and equal
+    // length regardless of what the caller sent.
+    const given = createHash('sha256').update(password).digest()
+    const expected = createHash('sha256').update(env.ADMIN_PASSWORD).digest()
+    if (!timingSafeEqual(given, expected)) {
       throw new AuthError('Invalid password')
     }
 

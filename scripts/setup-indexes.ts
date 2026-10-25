@@ -89,6 +89,19 @@ async function main() {
       reason: 'admin review queue: submitted teams newest-first',
     },
 
+    {
+      // Partial: only teams that carry a nameKey (created after this change) are
+      // indexed, so pre-existing teams with duplicate names can't block index creation.
+      collection: 'teams',
+      spec: { competitionId: 1, nameKey: 1 },
+      options: {
+        unique: true,
+        partialFilterExpression: { nameKey: { $exists: true } },
+        name: 'unique_team_name_per_competition',
+      },
+      reason: 'race-safe: team names are unique (case-insensitive) within a competition',
+    },
+
     // ──────── PROJECTS ────────
     {
       collection: 'projects',
@@ -204,6 +217,11 @@ async function main() {
       spec: { name: 1 },
       options: { unique: true },
       reason: 'unique event name + fast getEventByName',
+    },
+    {
+      collection: 'events',
+      spec: { published: 1, createdAt: -1 },
+      reason: 'public listing of published events / admin listing newest-first',
     },
     {
       collection: 'events',

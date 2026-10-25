@@ -23,7 +23,9 @@ declare global {
   var __mongoClientPromise: Promise<MongoClient> | undefined
 }
 
-const DB_NAME = 'robotics-club'
+// Overridable so integration tests can run against a throwaway database
+// (never point tests at the production DB name).
+const DB_NAME = process.env.MONGO_DB_NAME || 'robotics-club'
 
 const options: MongoClientOptions = {
   // Pool sizing: enough for burst traffic, not so many that we exhaust Atlas

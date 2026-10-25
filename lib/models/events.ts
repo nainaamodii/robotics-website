@@ -1,5 +1,7 @@
 import { ObjectId } from 'mongodb'
 import { getDB } from '@/lib/db'
+import { ConflictError } from '@/lib/errors'
+import { eventStatus } from '@/lib/event-status'
 
 export interface Event {
     _id?: ObjectId
@@ -20,19 +22,49 @@ export interface Event {
     highlights: string[]
 
     isActive: boolean
+    /**
+     * Draft / published flag. Only published events are visible on the student
+     * website. Documents created before this field existed have no value and are
+     * treated as published (see PUBLISHED_FILTER) so nothing disappears on upgrade.
+     */
+    published?: boolean
     competitions: ObjectId[]
     createdAt: Date
+    updatedAt?: Date
 }
 
-export async function createEvent(eventData: Omit<Event, '_id' | 'competitions' | 'createdAt'>) {
+/** Mongo filter matching events the public may see. Legacy docs (field missing) stay visible. */
+export const PUBLISHED_FILTER = { published: { $ne: false } } as const
+
+/** True unless the event has been explicitly marked as a draft. */
+export function isPublished(e: { published?: boolean } | null | undefined): boolean {
+    return !!e && e.published !== false
+}
+
+function isDuplicateKey(error: any): boolean {
+    return error?.code === 11000
+}
+
+type NewEventInput = Omit<Event, '_id' | 'competitions' | 'createdAt' | 'isActive' | 'published'> & {
+    published?: boolean
+}
+
+export async function createEvent(eventData: NewEventInput) {
     const db = await getDB()
     const newEvent: Event = {
         ...eventData,
+        published: eventData.published ?? false,
         competitions: [],
         isActive: true,
         createdAt: new Date(),
     }
-    return db.collection('events').insertOne(newEvent)
+    try {
+        return await db.collection('events').insertOne(newEvent)
+    } catch (error) {
+        // Unique index on events.name (scripts/setup-indexes.ts).
+        if (isDuplicateKey(error)) throw new ConflictError('An event with this name already exists')
+        throw error
+    }
 }
 
 export async function getEventByName(name: string) {
@@ -46,9 +78,19 @@ export async function getEventById(id: string) {
     return db.collection('events').findOne({ _id: new ObjectId(id) })
 }
 
-export async function getAllEvents() {
+/**
+ * All events with their competitions populated.
+ *   publishedOnly   — hide drafts (use for anything public)
+ *   newestFirst     — sort by creation date, newest first (admin list)
+ */
+export async function getAllEvents(
+    opts: { publishedOnly?: boolean; newestFirst?: boolean } = {},
+) {
     const db = await getDB()
-    return db.collection('events').aggregate([
+    const pipeline: any[] = []
+    if (opts.publishedOnly) pipeline.push({ $match: PUBLISHED_FILTER })
+    if (opts.newestFirst) pipeline.push({ $sort: { createdAt: -1 } })
+    pipeline.push(
         {
             $lookup: {
                 from: "competitions",
@@ -68,18 +110,83 @@ export async function getAllEvents() {
             $project: {
                 competitionsList: 0
             }
+        },
+    )
+    return db.collection('events').aggregate(pipeline).toArray()
+}
+
+/** Adds the computed `status` ('upcoming' | 'past') the frontend filters on. */
+export function withStatus<T extends { startDate?: string; endDate?: string }>(events: T[]) {
+    const now = new Date()
+    return events.map((e) => ({ ...e, status: eventStatus(e, now) }))
+}
+
+/**
+ * Admin view: every event (drafts included) with per-competition registration
+ * counts, so new student registrations show up on the dashboard immediately.
+ */
+export async function getAdminEvents() {
+    const db = await getDB()
+    const [events, stats] = await Promise.all([
+        getAllEvents({ publishedOnly: false, newestFirst: true }),
+        db
+            .collection('teams')
+            .aggregate([
+                {
+                    $group: {
+                        _id: '$competitionId',
+                        teams: { $sum: 1 },
+                        members: { $sum: { $size: { $ifNull: ['$members', []] } } },
+                        pendingReview: {
+                            $sum: { $cond: [{ $eq: ['$approvalStatus', 'submitted'] }, 1, 0] },
+                        },
+                    },
+                },
+            ])
+            .toArray(),
+    ])
+    const byCompetition = new Map(stats.map((s: any) => [String(s._id), s]))
+    const now = new Date()
+
+    return events.map((e: any) => {
+        const competitions = (e.competitions ?? []).map((c: any) => {
+            const s: any = byCompetition.get(String(c._id))
+            return {
+                ...c,
+                teamCount: s?.teams ?? 0,
+                memberCount: s?.members ?? 0,
+                pendingReview: s?.pendingReview ?? 0,
+            }
+        })
+        return {
+            ...e,
+            published: isPublished(e),
+            competitions,
+            teamCount: competitions.reduce((n: number, c: any) => n + c.teamCount, 0),
+            status: eventStatus(e, now),
         }
-    ]).toArray()
+    })
 }
 
 export async function updateEvent(id: string, updates: Partial<Event>) {
     const db = await getDB()
-    const result = await db.collection('events').findOneAndUpdate(
-        { _id: new ObjectId(id) },
-        { $set: { ...updates, updatedAt: new Date() } },
-        { returnDocument: 'after' }
-    )
-    return result
+    try {
+        return await db.collection('events').findOneAndUpdate(
+            { _id: new ObjectId(id) },
+            { $set: { ...updates, updatedAt: new Date() } },
+            { returnDocument: 'after' }
+        )
+    } catch (error) {
+        if (isDuplicateKey(error)) throw new ConflictError('An event with this name already exists')
+        throw error
+    }
+}
+
+/** Number of teams registered in any of the given competitions. */
+async function countTeamsInCompetitions(competitionIds: ObjectId[]): Promise<number> {
+    if (competitionIds.length === 0) return 0
+    const db = await getDB()
+    return db.collection('teams').countDocuments({ competitionId: { $in: competitionIds } })
 }
 
 export async function deleteEvent(id: string) {
@@ -90,6 +197,15 @@ export async function deleteEvent(id: string) {
     const event = await db.collection('events').findOne({ _id: eventId })
 
     if (event && event.competitions && event.competitions.length > 0) {
+        // Refuse to orphan registrations: deleting competitions would leave teams
+        // pointing at nothing and silently destroy the registration history.
+        const teams = await countTeamsInCompetitions(event.competitions)
+        if (teams > 0) {
+            throw new ConflictError(
+                `This event has ${teams} registered team${teams === 1 ? '' : 's'}. ` +
+                'Unpublish it instead, or delete those teams first.',
+            )
+        }
         // 2. Delete all associated competitions
         await db.collection('competitions').deleteMany({
             _id: { $in: event.competitions }
@@ -99,4 +215,3 @@ export async function deleteEvent(id: string) {
     const result = await db.collection('events').deleteOne({ _id: eventId })
     return result.deletedCount > 0
 }
-

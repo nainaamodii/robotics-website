@@ -1,35 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { createEvent, getAllEvents } from '@/lib/models/events'
+import { createEvent, getAllEvents, withStatus } from '@/lib/models/events'
 import { requireAdmin } from '@/lib/auth-guard'
 import { CreateEventSchema } from '@/lib/validation'
 import { handleApiError } from '@/lib/errors'
 
-export const revalidate = 300
+// Always read fresh. This used to be cached for 5 minutes, which meant an event
+// an admin had just published (or a registration toggle) could take minutes to
+// reach students. The dataset is tiny, so a live read is cheap.
+export const dynamic = 'force-dynamic'
 
+/**
+ * GET /api/events — PUBLIC. Only published events are returned; drafts are
+ * invisible here. Admins use GET /api/admin/events to see everything.
+ */
 export async function GET() {
   try {
-    const events = await getAllEvents()
-
-    const now = new Date()
-    const withStatus = events.map((e: any) => {
-      const end = e.endDate ? new Date(e.endDate) : null
-      const start = e.startDate ? new Date(e.startDate) : null
-      let status: string
-      if (end && end >= now) status = 'upcoming'
-      else if (start && !end && start >= now) status = 'upcoming'
-      else status = 'past'
-      return { ...e, status }
-    })
-
-    const res = NextResponse.json(withStatus)
-    res.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+    const events = await getAllEvents({ publishedOnly: true })
+    const res = NextResponse.json(withStatus(events))
+    res.headers.set('Cache-Control', 'no-store')
     return res
   } catch (error) {
     return handleApiError(error)
   }
 }
 
+/** POST /api/events — admin only. New events are created as drafts unless `published: true`. */
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin()
