@@ -13,6 +13,12 @@ import { Plus, ImageIcon, Users, Calendar, Mail } from "lucide-react"
 import Link from "next/link"
 
 type AdminTab = "list" | "add" | "media" | "events" | "email"
+import { ChatPanel } from "@/components/admin/agent/ChatPanel"
+import { motion } from "framer-motion"
+import { Plus, ImageIcon, Users, Calendar, MessageCircle } from "lucide-react"
+import Link from "next/link"
+
+type AdminTab = "list" | "add" | "media" | "events" | "chat"
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("list")
@@ -48,6 +54,7 @@ export default function AdminPage() {
     { key: "events", label: "Events", icon: <Calendar size={16} /> },
     { key: "media", label: "Media", icon: <ImageIcon size={16} /> },
     { key: "email", label: "Email / SMTP", icon: <Mail size={16} /> },
+    { key: "chat", label: "Chat", icon: <MessageCircle size={16} /> },
   ]
 
   return (
@@ -91,6 +98,11 @@ export default function AdminPage() {
               <p className="text-[var(--fg-secondary)]">Upload images for projects and events.</p>
             </div>
             <MediaUploader />
+          </motion.div>
+        )}
+        {activeTab === "chat" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <ChatPanel />
           </motion.div>
         )}
       </div>
