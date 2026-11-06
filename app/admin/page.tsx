@@ -7,11 +7,12 @@ import { ProjectForm } from "@/components/admin/project-form"
 import { ProjectsList } from "@/components/admin/projects-list"
 import { MediaUploader } from "@/components/admin/media-uploader"
 import { EventsManager } from "@/components/admin/events-manager"
+import { ChatPanel } from "@/components/admin/agent/ChatPanel"
 import { motion } from "framer-motion"
-import { Plus, ImageIcon, Users, Calendar } from "lucide-react"
+import { Plus, ImageIcon, Users, Calendar, MessageCircle } from "lucide-react"
 import Link from "next/link"
 
-type AdminTab = "list" | "add" | "media" | "events"
+type AdminTab = "list" | "add" | "media" | "events" | "chat"
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("list")
@@ -46,6 +47,7 @@ export default function AdminPage() {
     { key: "add", label: "Add Project", icon: <Plus size={16} /> },
     { key: "events", label: "Events", icon: <Calendar size={16} /> },
     { key: "media", label: "Media", icon: <ImageIcon size={16} /> },
+    { key: "chat", label: "Chat", icon: <MessageCircle size={16} /> },
   ]
 
   return (
@@ -88,6 +90,11 @@ export default function AdminPage() {
               <p className="text-[var(--fg-secondary)]">Upload images for projects and events.</p>
             </div>
             <MediaUploader />
+          </motion.div>
+        )}
+        {activeTab === "chat" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <ChatPanel />
           </motion.div>
         )}
       </div>
